@@ -357,6 +357,7 @@ def main_simulation_from_file(factory, add_args=None):
         # Warm up the ASR with first file
         a = load_audio_chunk(audio_files[0], 0, 1)
         asr.warmup(a)
+        print("ASR warmup complete.\n\n")
         
         # Process all files
         batch_results = []
@@ -487,6 +488,7 @@ def main_simulation_from_file(factory, add_args=None):
                 print(f"Matched files: {evaluation_results['matched_files']}")
                 print(f"Unmatched files: {evaluation_results['unmatched_files']}")
                 print(f"\nAverage CER: {evaluation_results['average_cer']:.4f} ({evaluation_results['average_cer']*100:.2f}%)")
+                print(f"Average MER: {evaluation_results['average_mer']:.4f} ({evaluation_results['average_mer']*100:.2f}%)")
                 if evaluation_results.get('average_first_token_latency_ms') is not None:
                     print(f"Average First Token Latency: {evaluation_results['average_first_token_latency_ms']:.2f} ms")
                 if evaluation_results.get('average_last_token_latency_ms') is not None:
@@ -495,12 +497,15 @@ def main_simulation_from_file(factory, add_args=None):
                 
                 # Print per-file results if in INFO or DEBUG mode
                 if args.log_level in ['DEBUG', 'INFO']:
-                    print("\nPer-file CER:")
+                    print("\nPer-file CER/MER:")
                     print("-" * 80)
                     for result in evaluation_results['per_file_results']:
                         ftl_str = f" FTL: {result['first_token_latency_ms']:.2f}ms" if result.get('first_token_latency_ms') else ""
                         ltl_str = f" LTL: {result['last_token_latency_ms']:.2f}ms" if result.get('last_token_latency_ms') else ""
-                        print(f"{result['file']:40s} CER: {result['cer']:.4f} ({result['cer']*100:.2f}%){ftl_str}{ltl_str}")
+                        print(
+                            f"{result['file']:40s} CER: {result['cer']:.4f} ({result['cer']*100:.2f}%)  "
+                            f"MER: {result['mer']:.4f} ({result['mer']*100:.2f}%){ftl_str}{ltl_str}"
+                        )
                 
                 # Save evaluation results
                 eval_output = args.eval_output or os.path.join(args.logdir, 'evaluation_results.json')
@@ -531,6 +536,7 @@ def main_simulation_from_file(factory, add_args=None):
 
         # warm up the ASR because the very first transcribe takes much more time than the other
         asr.warmup(a)
+        print("ASR warmup complete.\n\n")
 
         # Process the single file
         result = process_single_audio_file(audio_path, args, asr, online, min_chunk, factory)
@@ -551,7 +557,7 @@ def main_simulation_from_file(factory, add_args=None):
                 import sys
                 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
                 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                from evaluate import load_references, calculate_cer
+                from evaluate import load_references, calculate_cer, calculate_mer
                 
                 # Load references
                 references = load_references(args.reference_file, language=args.lan)
@@ -565,6 +571,7 @@ def main_simulation_from_file(factory, add_args=None):
                 
                 if ref_text:
                     cer = calculate_cer(ref_text, result['final_text'], args.lan)
+                    mer = calculate_mer(ref_text, result['final_text'], args.lan)
                     
                     # Print evaluation result
                     print("\n" + "=" * 80)
@@ -572,6 +579,7 @@ def main_simulation_from_file(factory, add_args=None):
                     print("=" * 80)
                     print(f"File: {filename}")
                     print(f"CER: {cer:.4f} ({cer*100:.2f}%)")
+                    print(f"MER: {mer:.4f} ({mer*100:.2f}%)")
                     print("=" * 80)
                     
                     # Save evaluation result if logdir is specified
@@ -582,6 +590,7 @@ def main_simulation_from_file(factory, add_args=None):
                             'reference': ref_text,
                             'generated': result['final_text'],
                             'cer': cer,
+                            'mer': mer,
                             'ref_length': len(ref_text),
                             'gen_length': len(result['final_text']),
                             'first_token_latency_ms': result['first_token_latency'] * 1000 if result.get('first_token_latency') else None,

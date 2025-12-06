@@ -15,63 +15,9 @@ import torch
 import librosa
 from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq
 from tqdm import tqdm
+from evaluate import calculate_cer
 import time
 
-
-def calculate_cer(reference: str, hypothesis: str) -> float:
-    """
-    Calculate Character Error Rate (CER) between reference and hypothesis.
-    
-    CER = (S + D + I) / N
-    where:
-        S = number of substitutions
-        D = number of deletions
-        I = number of insertions
-        N = total number of characters in reference
-    
-    Args:
-        reference: Ground truth text
-        hypothesis: Generated text
-        
-    Returns:
-        CER as a float between 0 and 1
-    """
-    # Remove spaces for character-level comparison
-    ref = reference.replace(" ", "")
-    hyp = hypothesis.replace(" ", "")
-    
-    # Dynamic programming for edit distance
-    len_ref = len(ref)
-    len_hyp = len(hyp)
-    
-    # Initialize DP table
-    dp = [[0] * (len_hyp + 1) for _ in range(len_ref + 1)]
-    
-    # Base cases
-    for i in range(len_ref + 1):
-        dp[i][0] = i
-    for j in range(len_hyp + 1):
-        dp[0][j] = j
-    
-    # Fill DP table
-    for i in range(1, len_ref + 1):
-        for j in range(1, len_hyp + 1):
-            if ref[i-1] == hyp[j-1]:
-                dp[i][j] = dp[i-1][j-1]
-            else:
-                substitution = dp[i-1][j-1] + 1
-                insertion = dp[i][j-1] + 1
-                deletion = dp[i-1][j] + 1
-                dp[i][j] = min(substitution, insertion, deletion)
-    
-    # Calculate CER
-    edit_distance = dp[len_ref][len_hyp]
-    cer = edit_distance / len_ref if len_ref > 0 else 0.0
-    
-    # Cap CER at 100% (1.0)
-    cer = min(cer, 1.0)
-    
-    return cer
 
 
 def load_references(reference_file: str) -> Dict[str, str]:
@@ -235,7 +181,7 @@ class WhisperBatchInference:
                 inference_time = (time.time() - start_time) * 1000  # Convert to ms
                 
                 # Calculate CER
-                cer = calculate_cer(reference_text, generated_text)
+                cer = calculate_cer(reference_text, generated_text, language=self.language)
                 total_cer += cer
                 matched_count += 1
                 

@@ -76,12 +76,14 @@ bash run_batch_eval_wsyue.sh
   "matched_files": 100,
   "unmatched_files": 14020,
   "average_cer": 0.2171288845095628,
+  "average_mer": 0.2413379123456789,
   "per_file_results": [
     {
       "file": "0000004453.wav",
       "reference": "美国都已经系另外一件事呃欧洲国家亦都系另外一个回事",
       "generated": "都已经 系另外一件事 欧洲国家 亦都系另外一护",
       "cer": 0.24,
+      "mer": 0.26,
       "ref_length": 25,
       "gen_length": 23,
       "first_token_latency_ms": 1312.2074604034424
@@ -91,6 +93,7 @@ bash run_batch_eval_wsyue.sh
       "reference": "咁我哋就改咗个心出嚟啦即系硬呢度啦吓",
       "generated": "咁我 哋就改咗个心 出嚟啦即系 硬呢度啦",
       "cer": 0.05555555555555555,
+      "mer": 0.08333333333333333,
       "ref_length": 18,
       "gen_length": 20,
       "first_token_latency_ms": 1300.1341819763184
@@ -105,6 +108,5 @@ bash run_batch_eval_wsyue.sh
 - [x] Preliminary test SimulStreaming on Mandarin (AIShell-1)
 - [x] Preliminary test SimulStreaming on Cantonese (WSYue)
 - [x] Add `whisper-medium-yue` 
-- [ ] Add Last Token Latency
-- [ ] Check First Token Latency implementation, reduce/optimize it to below 1000ms
-
+- [x] Add Last Token Latency
+- [ ] Add Error Corrector with Ultravox as backbone

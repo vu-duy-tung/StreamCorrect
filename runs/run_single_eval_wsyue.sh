@@ -5,9 +5,9 @@
 set -e  # Exit on error
 
 # Configuration
-AUDIO_PATH="/home/duy/PlayWithMino/SimulStreaming/save_dir/data/WSYue-ASR-eval/Short/wav_/gd0000333_43720_50830.wav"
+AUDIO_PATH="/home/duy/PlayWithMino/SimulStreaming/save_dir/data/WSYue-ASR-eval/Short/wav_/0000004453.wav"
 REFERENCE_FILE="/home/duy/PlayWithMino/SimulStreaming/save_dir/data/WSYue-ASR-eval/Short/content.json"
-MODEL_PATH="large-v3.pt"
+MODEL_PATH="medium.pt"
 OUTPUT_DIR="./example_output"
 
 echo "=========================================="
@@ -27,14 +27,30 @@ python simulstreaming_whisper.py "$AUDIO_PATH" \
     --logdir "$OUTPUT_DIR" \
     --vac \
     --vac-chunk-size 0.5 \
+    --min-chunk-size 0.01 \
     --lan "yue" \
-    --beams 10 \
+    --beams 4 \
+    --frame_threshold 20 \
     --reference-file "$REFERENCE_FILE" \
-    --log-level DEBUG
+    --log-level DEBUG \
+    --comp_unaware
 
 echo ""
 echo "=========================================="
 echo "Workflow Complete!"
 echo "=========================================="
 echo ""
+
+if [ -f "$OUTPUT_DIR/evaluation_result.json" ]; then
+    echo "Evaluation summary:"
+    OUTPUT_FILE="$OUTPUT_DIR/evaluation_result.json" python - <<'PY'
+import json, os
+path = os.environ["OUTPUT_FILE"]
+with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+print(f"  CER: {data.get('cer', 'N/A')}")
+print(f"  MER: {data.get('mer', 'N/A')}")
+print(f"  Full JSON: {path}")
+PY
+fi
 

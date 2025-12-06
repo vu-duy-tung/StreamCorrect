@@ -34,8 +34,8 @@ def parse_lines(lines, ext=None, prefix=None):
 
 		out.append({"audio_path": audio, "text_zh": text})
 		limit += 1
-		if limit >= 10:
-			break
+		# if limit >= 10:
+		# 	break
 	return out
 
 

@@ -12,15 +12,57 @@ import string
 import logging
 import argparse
 import unicodedata
+from typing import List, Optional, Tuple
 from pathlib import Path
 from jiwer import cer 
 from opencc import OpenCC
+from jiwer import wer
 
 # Module logger - will use the parent logger when imported
 logger = logging.getLogger(__name__)
 
 converter_zh = OpenCC('t2s')
 converter_yue = OpenCC('s2hk')
+
+
+_CJK_RANGES = (
+    (0x3400, 0x4DBF),  # CJK Unified Ideographs Extension A
+    (0x4E00, 0x9FFF),  # CJK Unified Ideographs
+    (0xF900, 0xFAFF),  # CJK Compatibility Ideographs
+    (0x20000, 0x2A6DF),  # Extension B
+    (0x2A700, 0x2B73F),  # Extension C
+    (0x2B740, 0x2B81F),  # Extension D
+    (0x2B820, 0x2CEAF),  # Extension E
+    (0x2CEB0, 0x2EBEF),  # Extensions F/G
+)
+
+
+def _contains_cjk(text: str) -> bool:
+    for char in text:
+        codepoint = ord(char)
+        if any(start <= codepoint <= end for start, end in _CJK_RANGES):
+            return True
+    return False
+
+
+def _resolve_normalization_language(language: str, text: str) -> Optional[str]:
+    """Infer whether Cantonese/Mandarin normalization should be applied."""
+    if not text:
+        return None
+
+    lang = (language or '').strip().lower()
+    if lang in {'yue', 'zh'}:
+        return lang
+    if 'yue' in lang or 'canton' in lang or 'hongkong' in lang or 'hk' in lang:
+        return 'yue'
+    if any(token in lang for token in ('zh', 'cmn', 'mandarin', 'chi', 'cn', 'zh-cn')):
+        return 'zh'
+
+    if _contains_cjk(text):
+        # Default to Mandarin normalization when we detect CJK without explicit hint
+        return 'zh'
+
+    return None
 
 
 def normalize_utterances(text: str, language: str = "yue") -> str:
@@ -82,6 +124,78 @@ def remove_punctuation_unicode(s: str) -> str:
     # Remove characters whose Unicode category starts with 'P' (punctuation)
     return ''.join(ch for ch in s if not unicodedata.category(ch).startswith('P'))
 
+
+def replace_punctuation_with_space(s: str) -> str:
+    if not s:
+        return s
+
+    # Replace ASCII punctuation with spaces
+    translation_table = str.maketrans({ch: ' ' for ch in string.punctuation})
+    s = s.translate(translation_table)
+
+    # Replace Unicode punctuation categories with spaces
+    s = ''.join(' ' if unicodedata.category(ch).startswith('P') else ch for ch in s)
+    return s
+
+
+def _normalize_for_mer(text: str, language: str) -> Tuple[str, Optional[str]]:
+    """Normalize text while preserving spaces required for mixed tokenization."""
+    normalized = text.strip()
+    if not normalized:
+        return '', None
+
+    normalization_language = _resolve_normalization_language(language, normalized)
+
+    if normalization_language:
+        normalized = normalize_utterances(normalized, language=normalization_language)
+    else:
+        normalized = normalized.lower()
+
+    normalized = replace_punctuation_with_space(normalized)
+
+    # Collapse repeated whitespace and trim
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    return normalized, normalization_language
+
+
+def mixed_tokenize(text: str, language: str) -> List[str]:
+    """
+    Tokenize text into a sequence that mixes single CJK characters and Latin words.
+    """
+    normalized, normalization_language = _normalize_for_mer(text, language)
+    if not normalized:
+        return []
+
+    token_language = normalization_language or (language if language in ['yue', 'zh'] else None)
+
+    if token_language in ['yue', 'zh']:
+        tokens: List[str] = []
+        ascii_buffer: List[str] = []
+
+        for char in normalized:
+            if char.isspace():
+                if ascii_buffer:
+                    tokens.append(''.join(ascii_buffer))
+                    ascii_buffer.clear()
+                continue
+
+            if ord(char) < 128:
+                ascii_buffer.append(char)
+                continue
+
+            if ascii_buffer:
+                tokens.append(''.join(ascii_buffer))
+                ascii_buffer.clear()
+
+            tokens.append(char)
+
+        if ascii_buffer:
+            tokens.append(''.join(ascii_buffer))
+
+        return tokens
+
+    return normalized.split()
+
 def calculate_cer(reference: str, hypothesis: str, language: str) -> float:
     """
     Calculate Character Error Rate (CER) between reference and hypothesis strings.
@@ -90,14 +204,17 @@ def calculate_cer(reference: str, hypothesis: str, language: str) -> float:
     ref = reference.strip()
     hyp = hypothesis.strip()
 
-    if language in ['yue', 'zh']:
+    normalization_language = _resolve_normalization_language(language, ref + hyp)
+
+    if normalization_language:
+        ref = normalize_utterances(ref, language=normalization_language)
+        hyp = normalize_utterances(hyp, language=normalization_language)
+
         # Remove spaces and punctuation for Cantonese/Yue
         ref = ref.translate(str.maketrans('', '', string.punctuation + ' '))
         hyp = hyp.translate(str.maketrans('', '', string.punctuation + ' '))
         ref = remove_punctuation_unicode(ref)
         hyp = remove_punctuation_unicode(hyp)
-        ref = normalize_utterances(ref, language=language)
-        hyp = normalize_utterances(hyp, language=language)
     else:
         # For other languages, just lower case and strip
         ref = ref.lower()
@@ -109,6 +226,27 @@ def calculate_cer(reference: str, hypothesis: str, language: str) -> float:
     print("Hyp:", hyp)
     return cer(ref, hyp)
 
+def calculate_mer(reference: str, hypothesis: str, language: str, char_weight: float = 0.5) -> float:
+    """
+    Calculate Mixed Error Rate (MER) using mixed character/word tokenization.
+
+    The optional ``char_weight`` argument is kept for backwards compatibility but
+    no longer affects the computation.
+    """
+    ref_tokens = mixed_tokenize(reference, language)
+    hyp_tokens = mixed_tokenize(hypothesis, language)
+
+    if not ref_tokens:
+        return 0.0 if not hyp_tokens else 1.0
+
+    ref_seq = ' '.join(ref_tokens)
+    hyp_seq = ' '.join(hyp_tokens)
+
+    print("[PLAY WITH MINO] - Mixed tokenization:")
+    print(ref_tokens)
+    print(hyp_tokens)
+
+    return wer(ref_seq, hyp_seq)
 
 def load_references(reference_file, language='en'):
     """
@@ -204,46 +342,52 @@ def load_individual_transcriptions(logdir):
 
 def evaluate_transcriptions(references, generated, language):
     """
-    Evaluate generated transcriptions against references using CER.
-    
+    Evaluate generated transcriptions against references using CER and MER.
+
     Args:
         references (dict): Reference transcriptions
         generated (dict): Generated transcriptions
-    
+
     Returns:
-        dict: Evaluation results including per-file CER and average
+        dict: Evaluation results including per-file metrics and averages
     """
     results = []
     total_cer = 0.0
+    total_mer = 0.0
     matched_count = 0
     
     for filename, ref_text in references.items():
         if filename in generated:
             gen_text = generated[filename]
-            cer = calculate_cer(ref_text, gen_text, language)
+            cer_score = calculate_cer(ref_text, gen_text, language)
+            mer_score = calculate_mer(ref_text, gen_text, language)
             
             results.append({
                 'file': filename,
                 'reference': ref_text,
                 'generated': gen_text,
-                'cer': cer,
+                'cer': cer_score,
+                'mer': mer_score,
                 'ref_length': len(ref_text),
                 'gen_length': len(gen_text)
             })
             
-            total_cer += cer
+            total_cer += cer_score
+            total_mer += mer_score
             matched_count += 1
             
-            logger.debug(f"{filename}: CER={cer:.4f}")
+            logger.debug(f"{filename}: CER={cer_score:.4f} MER={mer_score:.4f}")
     
     # Calculate average CER
     avg_cer = total_cer / matched_count if matched_count > 0 else 0.0
+    avg_mer = total_mer / matched_count if matched_count > 0 else 0.0
     
     summary = {
         'total_files': len(references),
         'matched_files': matched_count,
         'unmatched_files': len(references) - matched_count,
         'average_cer': avg_cer,
+        'average_mer': avg_mer,
         'per_file_results': results
     }
     
@@ -326,7 +470,7 @@ def main():
     
     # Evaluate
     logger.info("Evaluating transcriptions...")
-    evaluation_results = evaluate_transcriptions(references, generated)
+    evaluation_results = evaluate_transcriptions(references, generated, args.language)
     
     # Print summary
     print("\n" + "=" * 80)
@@ -336,6 +480,7 @@ def main():
     print(f"Matched files: {evaluation_results['matched_files']}")
     print(f"Unmatched files: {evaluation_results['unmatched_files']}")
     print(f"\nAverage CER: {evaluation_results['average_cer']:.4f} ({evaluation_results['average_cer']*100:.2f}%)")
+    print(f"Average MER: {evaluation_results['average_mer']:.4f} ({evaluation_results['average_mer']*100:.2f}%)")
     print("=" * 80)
     
     # Print per-file results
@@ -343,7 +488,7 @@ def main():
         print("\nPer-file results:")
         print("-" * 80)
         for result in evaluation_results['per_file_results']:
-            print(f"{result['file']:40s} CER: {result['cer']:.4f} ({result['cer']*100:.2f}%)")
+            print(f"{result['file']:40s} CER: {result['cer']:.4f} ({result['cer']*100:.2f}%)  MER: {result['mer']:.4f} ({result['mer']*100:.2f}%)")
     
     # Save results
     output_file = args.output or os.path.join(args.logdir, 'evaluation_results.json')

@@ -386,12 +386,12 @@ class PaddedAlignAttWhisper:
         new_segment = True
         if len(self.segments) == 0:
             logger.debug("No segments, nothing to do")
-            self.logdir_save([], [], {})
+            # self.logdir_save([], [], {})
             return [], {}
         if not self._apply_minseglen():
             logger.debug(f"applied minseglen {self.cfg.audio_min_len} > {self.segments_len()}.")
             input_segments = torch.cat(self.segments, dim=0)
-            self.logdir_save(input_segments, [], {})
+            # self.logdir_save(input_segments, [], {})
             return [], {}
 
         # input_segments is concatenation of audio, it's one array

@@ -51,6 +51,84 @@ _ALIGNMENT_HEADS = {
     "turbo": b"ABzY8j^C+e0{>%RARaKHP%t(lGR*)0g!tONPyhe`",
 }
 
+def convert_finetuned_to_whisper_state_dict(finetuned_state_dict):
+    """
+    Convert fine-tuned model state dict (with 'model.' prefix) to original Whisper model state dict.
+    
+    Args:
+        finetuned_state_dict: Dictionary containing fine-tuned model parameters with 'model.' prefix
+        
+    Returns:
+        whisper_state_dict: Dictionary with keys renamed to match original Whisper format
+    """
+    whisper_state_dict = {}
+    
+    for name in finetuned_state_dict.keys():
+        original_name = copy.deepcopy(name)
+        
+        # Skip training-specific keys that don't exist in original Whisper
+        if name == "proj_out.weight":
+            continue
+        
+        # Remove 'model.' prefix
+        if name.startswith("model."):
+            name = name[6:]  # Remove "model." prefix
+        else:
+            # If key doesn't start with 'model.', skip it
+            continue
+        
+        # Handle positional embeddings (need to squeeze)
+        if name == "encoder.embed_positions.weight":
+            whisper_state_dict["encoder.positional_embedding"] = finetuned_state_dict[original_name].squeeze(0)
+            continue
+        elif name == "decoder.embed_positions.weight":
+            whisper_state_dict["decoder.positional_embedding"] = finetuned_state_dict[original_name].squeeze(0)
+            continue
+        
+        # Apply string replacements in correct order
+        # Convolution layers (encoder)
+        name = name.replace("encoder.conv1", "encoder.conv1")
+        name = name.replace("encoder.conv2", "encoder.conv2")
+        
+        # Token embedding (decoder)
+        name = name.replace("decoder.embed_tokens", "decoder.token_embedding")
+        
+        # Encoder/Decoder blocks
+        name = name.replace("encoder.layers", "encoder.blocks")
+        name = name.replace("decoder.layers", "decoder.blocks")
+        
+        # Cross attention (decoder only) - handle encoder_attn -> cross_attn
+        name = name.replace(".encoder_attn.q_proj", ".cross_attn.query")
+        name = name.replace(".encoder_attn.k_proj", ".cross_attn.key")
+        name = name.replace(".encoder_attn.v_proj", ".cross_attn.value")
+        name = name.replace(".encoder_attn.out_proj", ".cross_attn.out")
+        
+        # Self attention - handle different naming conventions
+        name = name.replace(".self_attn.q_proj", ".attn.query")
+        name = name.replace(".self_attn.k_proj", ".attn.key")
+        name = name.replace(".self_attn.v_proj", ".attn.value")
+        name = name.replace(".self_attn.out_proj", ".attn.out")
+        
+        # Feed forward layers
+        name = name.replace(".fc1", ".mlp.0")
+        name = name.replace(".fc2", ".mlp.2")
+        
+        # Normalization layers - handle decoder first (more specific)
+        if "decoder" in name:
+            name = name.replace(".encoder_attn_layer_norm", ".cross_attn_ln")
+            name = name.replace(".final_layer_norm", ".mlp_ln")
+            name = name.replace(".self_attn_layer_norm", ".attn_ln")
+        else:
+            name = name.replace(".final_layer_norm", ".mlp_ln")
+            name = name.replace(".self_attn_layer_norm", ".attn_ln")
+        
+        # Post-encoder/decoder normalization
+        name = name.replace("encoder.layer_norm", "encoder.ln_post")
+        name = name.replace("decoder.layer_norm", "decoder.ln")
+        
+        whisper_state_dict[name] = finetuned_state_dict[original_name]
+    
+    return whisper_state_dict
 
 def convert_wenet_to_whisper_state_dict(wenet_state_dict):
     """
@@ -227,6 +305,10 @@ def load_model(
     # ===== Custom whisper medium =====
     if name == "medium":
         checkpoint_file = "whisper_medium_yue.pt"
+    if name == "large-v2":
+        checkpoint_file = "large-v2-zh.pt"
+    if name == "large-v3-turbo":
+        checkpoint_file = "large-v3-turbo-zh.pt"
     # alignment_heads = None
     # ================================
 
@@ -237,6 +319,8 @@ def load_model(
     del checkpoint_file
 
     # ===== Custom whisper medium =====
+    if name == "large-v3-turbo" or name == "large-v2":
+        checkpoint['model_state_dict'] = convert_finetuned_to_whisper_state_dict(checkpoint['model_state_dict'])
     if name == "medium":
         checkpoint['model_state_dict'] = convert_wenet_to_whisper_state_dict(checkpoint)
         checkpoint["dims"] = {'n_mels': 80, 'n_vocab': 51865, 'n_audio_ctx': 1500, 'n_audio_state': 1024, 'n_audio_head': 16, 'n_audio_layer': 24, 'n_text_ctx': 448, 'n_text_state': 1024, 'n_text_head': 16, 'n_text_layer': 24}
