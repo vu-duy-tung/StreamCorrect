@@ -1,0 +1,108 @@
+from datetime import datetime
+from typing import List, Optional
+
+import huggingface_hub
+import transformers
+
+from error_corrector.model import hf_hub_utils
+from error_corrector.model import wandb_utils
+
+ALLOW_PATTERNS = ["*.safetensors", "*.json", "*.txt"]
+
+
+def main(override_sys_args: Optional[List[str]] = None):
+    from error_corrector.training import config_base
+
+    start = datetime.now()
+    print("Downloading weights ...")
+
+    args = config_base.get_train_config(override_sys_args)
+
+    models = (
+        [args.text_model, args.audio_model] if args.audio_model else [args.text_model]
+    )
+
+    download_weights(models, args.model_load_dir)
+
+    end = datetime.now()
+    print(f"Weights downloaded in {end - start} seconds")
+
+
+def download_weights(
+    model_ids: List[str],
+    model_load_dir: Optional[str] = None,
+    include_models_from_load_dir: bool = False,
+) -> Optional[str]:
+    """
+    Fast download for the weights of the given model_ids, and the model_load_dir if it's a wandb url.
+    It uses HF Hub's snapshot_download to download multiple files in parallel which is faster than .from_pretrained.
+
+    It can potentially try to download the weights for the text_ and audio_ models used in the model_load_dir as well.
+
+    Args:
+        model_ids: List of model ids to download
+        model_load_dir: The model load directory. Can be a wandb url:
+            Ex: "wandb://fixie/ultravox/<model_path>"
+        include_models_from_load_dir: If True, include the models from the load directory
+            For training this behaviour is not needed since the parent models can be swapped out in some cases,
+            but for inference we need the exact same models.
+
+    Returns:
+        model_path: The path to the model if it was downloaded from wandb
+    """
+    model_path: Optional[str] = None
+
+    if model_load_dir and wandb_utils.is_wandb_url(model_load_dir):
+        # update model_path to the local path of the downloaded model
+        model_path = wandb_utils.download_model_from_wandb(model_load_dir)
+        if include_models_from_load_dir:
+            run_config = wandb_utils.get_run_config_from_artifact(model_load_dir)
+            if run_config is not None:
+                for key in ["text_model", "audio_model"]:
+                    if key in run_config:
+                        model_ids.append(run_config[key])
+
+    if model_load_dir and hf_hub_utils.is_hf_model(model_load_dir):
+        # update model_path to the local path of the downloaded model
+        model_path = hf_hub_utils.download_hf_model(
+            hf_hub_utils.get_hf_model_id(model_load_dir)
+        )
+
+    for model_id in model_ids:
+        download_model(model_id)
+
+    return model_path
+
+
+def download_model(model_id: str):
+    try:
+        # Download all model files that match ALLOW_PATTERNS
+        # This is faster than .from_pretrained due to parallel downloads
+        # We can also use hf-transfer to download the files which is faster on fast internet connections
+        hf_hub_utils.download_hf_model(model_id)
+    except huggingface_hub.utils.GatedRepoError as e:
+        raise e
+    except huggingface_hub.utils.RepositoryNotFoundError as e:
+        # We assume that the model is local if it's not found on HF Hub.
+        # The `.from_pretrained` call will verify the local case.
+        print(f"Model {model_id} not found on HF Hub. Skipping download. Error: {e}")
+
+
+def download_sub_models(model_id: str):
+    """
+    Download the text and audio models required by the given model_id.
+    """
+    try:
+        config = transformers.AutoConfig.from_pretrained(model_id)
+    except Exception as e:
+        print(f"Tried to download {model_id} but failed. Error: {e}")
+        return
+
+    if hasattr(config, "text_model_id") and config.text_model_id is not None:
+        download_model(config.text_model_id)
+    if hasattr(config, "audio_model_id") and config.audio_model_id is not None:
+        download_model(config.audio_model_id)
+
+
+if __name__ == "__main__":
+    main()
