@@ -1,0 +1,138 @@
+# =============================================================================
+# Ultravox LoRA Fine-tuning Configuration
+# =============================================================================
+# Usage: python training.py --config training_config.yaml
+
+# -----------------------------------------------------------------------------
+# Model Configuration
+# -----------------------------------------------------------------------------
+model_id: "fixie-ai/ultravox-v0_5-llama-3_2-1b"
+
+# -----------------------------------------------------------------------------
+# LoRA Configuration
+# -----------------------------------------------------------------------------
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - "q_proj"
+  - "k_proj"
+  - "v_proj"
+  - "o_proj"
+  - "gate_proj"
+  - "up_proj"
+  - "down_proj"
+
+# -----------------------------------------------------------------------------
+# Trainable Components
+# -----------------------------------------------------------------------------
+# Train the multi-modal projector (speech-to-text adapter)
+train_projector: true
+
+# Keep audio encoder (Whisper) frozen
+train_audio_encoder: false
+
+# -----------------------------------------------------------------------------
+# Training Parameters
+# -----------------------------------------------------------------------------
+output_dir: "./ultravox_lora_finetuned"
+num_train_epochs: 2
+per_device_train_batch_size: 8
+per_device_eval_batch_size: 8
+gradient_accumulation_steps: 12
+learning_rate: 1.0e-4 
+weight_decay: 0.05
+max_grad_norm: 1.0
+logging_steps: 15
+save_steps: 100
+eval_steps: 100
+
+# Learning rate scheduler (following Ultravox's approach)
+# Options: linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
+lr_scheduler_type: "cosine"
+# Use warmup_steps for absolute steps, or warmup_ratio for percentage of total steps
+# warmup_steps: 500   # Set to 0 to use warmup_ratio instead
+warmup_ratio: 0.01  # Only used if warmup_steps is 0
+
+# Mixed precision training
+# Note: bf16/fp16 may cause issues on some hardware configurations with this model
+# If you encounter "Floating point exception", try setting both to false
+# fp16 generally works but may require specific GPU support
+fp16: false
+bf16: false
+
+# Memory optimization
+# Note: gradient_checkpointing may cause issues with some model architectures
+# Disable if you encounter gradient computation errors
+gradient_checkpointing: false
+
+# -----------------------------------------------------------------------------
+# WandB Logging Configuration
+# -----------------------------------------------------------------------------
+# To enable WandB logging, add "wandb" to report_to list
+# Make sure to login first: wandb login
+report_to:
+  - "wandb"
+  - "tensorboard"
+
+# WandB project name
+wandb_project: "ultravox-lora-finetune"
+
+# WandB run name (optional, will be auto-generated if null)
+wandb_run_name: null
+
+# WandB tags for organizing runs
+wandb_tags:
+  - "ultravox"
+  - "lora"
+  - "asr-error-correction"
+
+# -----------------------------------------------------------------------------
+# Data Configuration
+# -----------------------------------------------------------------------------
+# Paths to training and evaluation data
+# 
+# Supported formats:
+# 1. Standard format (JSON/JSONL/CSV):
+#    {"audio": "path/to/audio.wav", "instruction": "...", "response": "..."}
+#
+# 2. Custom ASR Error Correction format (JSONL, auto-detected):
+#    {
+#      "k_best_candidates": ["candidate1", "candidate2", ...],
+#      "num_candidates": 4,
+#      "previous_transcript": "confirmed prefix",
+#      "continuation_transcript": "continuation to predict",
+#      "audio_path": "/path/to/audio.wav",
+#      "timestamp": 2.0
+#    }
+#    The audio is automatically cut from 0s to 'timestamp' seconds.
+#
+train_data_path: "/home/duy/PlayWithMino/SimulStreaming/error_corrector/data/sample_custom_data/samples_new.jsonl"
+eval_data_path: null   # Set to your evaluation data path (optional)
+
+# Train/validation split settings
+train_val_split: 0.1   # Fraction of data to use for validation (0.0 to disable)
+shuffle_data: true     # Whether to shuffle data before splitting
+
+# Example for custom ASR error correction:
+# train_data_path: "/home/duy/PlayWithMino/SimulStreaming/error_corrector/data/sample_custom_data/samples_new.jsonl"
+
+# Audio settings
+max_audio_length_seconds: 30.0
+max_text_length: 512
+sample_rate: 16000
+
+# -----------------------------------------------------------------------------
+# Distributed Training (DDP) Configuration
+# -----------------------------------------------------------------------------
+ddp_find_unused_parameters: false
+ddp_backend: "nccl"  # Use "gloo" for CPU-only
+local_rank: -1
+dataloader_num_workers: 4
+dataloader_pin_memory: true
+
+# -----------------------------------------------------------------------------
+# Miscellaneous
+# -----------------------------------------------------------------------------
+seed: 42
+resume_from_checkpoint: null  # Set to checkpoint path to resume training
