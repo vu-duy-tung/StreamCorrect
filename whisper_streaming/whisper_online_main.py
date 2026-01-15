@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
 
-# This code is retrieved from the original WhisperStreaming whisper_online.py .
-# It is refactored and simplified. Only the code that is needed for the 
-# SimulWhisper backend is kept. 
+# This code is retrieved from the original WhisperStreaming whisper_online.py.
+# It is refactored and simplified. Only the code that is needed for the
+# SimulWhisper backend is kept.
 
 import os
 import sys
-import json 
-import torch
-import random
-import numpy as np
-import librosa
-from functools import lru_cache
+import json
 import time
 import logging
+import random
+from functools import lru_cache
 
+import torch
+import numpy as np
+import librosa
 
 logger = logging.getLogger(__name__)
+
 
 @lru_cache(10**6)
 def load_audio(fname):
     a, _ = librosa.load(fname, sr=16000, dtype=np.float32)
     return a
+
 
 def random_seed(seed):
     random.seed(seed)
@@ -30,47 +32,82 @@ def random_seed(seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
+
 def load_audio_chunk(fname, beg, end):
     audio = load_audio(fname)
-    beg_s = int(beg*16000)
-    end_s = int(end*16000)
+    beg_s = int(beg * 16000)
+    end_s = int(end * 16000)
     return audio[beg_s:end_s]
 
+
 def processor_args(parser):
-    """shared args for the online processors
-    parser: argparse.ArgumentParser object
+    """Shared args for the online processors.
+
+    Args:
+        parser: argparse.ArgumentParser object
     """
-    group = parser.add_argument_group("WhisperStreaming processor arguments (shared for simulation from file and for the server)")
-    group.add_argument('--min-chunk-size', type=float, default=1.2, 
-                        help='Minimum audio chunk size in seconds. It waits up to this time to do processing. If the processing takes shorter '
-                        'time, it waits, otherwise it processes the whole segment that was received by this time.')
+    group = parser.add_argument_group(
+        "WhisperStreaming processor arguments (shared for simulation from file and for the server)"
+    )
+    group.add_argument(
+        '--min-chunk-size',
+        type=float,
+        default=1.2,
+        help=(
+            'Minimum audio chunk size in seconds. It waits up to this time to do processing. '
+            'If the processing takes shorter time, it waits, otherwise it processes the whole segment '
+            'that was received by this time.'
+        ),
+    )
 
-    group.add_argument('--lan', '--language', type=str, default="en", 
-                        help="Source language code, e.g. en, de, cs, or auto for automatic language detection from speech.")
-    group.add_argument('--task', type=str, default='transcribe', 
-                        choices=["transcribe","translate"],
-                        help="Transcribe or translate.")
+    group.add_argument(
+        '--lan',
+        '--language',
+        type=str,
+        default="en",
+        help="Source language code, e.g. en, de, cs, or auto for automatic language detection from speech."
+    )
+    group.add_argument(
+        '--task',
+        type=str,
+        default='transcribe',
+        choices=["transcribe", "translate"],
+        help="Transcribe or translate."
+    )
 
-    group.add_argument('--vac', action="store_true", default=False, 
-                        help='Use VAC = voice activity controller. Recommended. Requires torch.')
-    group.add_argument('--vac-chunk-size', type=float, default=0.04, 
-                        help='VAC sample size in seconds.')
+    group.add_argument(
+        '--vac',
+        action="store_true",
+        default=False,
+        help='Use VAC = voice activity controller. Recommended. Requires torch.'
+    )
+    group.add_argument(
+        '--vac-chunk-size',
+        type=float,
+        default=0.04,
+        help='VAC sample size in seconds.'
+    )
 
-    parser.add_argument("-l", "--log-level", dest="log_level", 
-                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], 
-                        help="Set the log level", default='DEBUG')
+    parser.add_argument(
+        "-l",
+        "--log-level",
+        dest="log_level",
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        help="Set the log level",
+        default='DEBUG'
+    )
 
-    parser.add_argument("--logdir", help="Directory to save audio segments and generated texts for debugging.",
-                       default=None)
+    parser.add_argument(
+        "--logdir",
+        help="Directory to save audio segments and generated texts for debugging.",
+        default=None
+    )
+
 
 def asr_factory(args, factory=None):
     """
-    Creates and configures an asr and online processor object through factory that is implemented in the backend.
+    Creates and configures an ASR and online processor object through a factory implemented in the backend.
     """
-#    if backend is None:
-#        backend = args.backend
-#    if backend == "simul-whisper":
-#        from simul_whisper_backend import simul_asr_factory
     asr, online = factory(args)
 
     # Create the OnlineASRProcessor
@@ -80,17 +117,19 @@ def asr_factory(args, factory=None):
 
     if args.task == "translate":
         if args.model_path.endswith(".en.pt"):
-            logger.error(f"The model {args.model_path} is English only. Translation is not available. Terminating.")
+            logger.error(
+                f"The model {args.model_path} is English only. Translation is not available. Terminating."
+            )
             sys.exit(1)
         asr.set_translate_task()
 
     return asr, online
 
-def set_logging(args,logger):
+
+def set_logging(args, logger):
     logging.basicConfig(
-        # this format would include module name:
-        #    format='%(levelname)s\t%(name)s\t%(message)s')
-            format='%(levelname)s\t%(message)s')
+        format='%(levelname)s\t%(message)s'
+    )
     logger.setLevel(args.log_level)
     logging.getLogger("simul_whisper").setLevel(args.log_level)
     logging.getLogger("whisper_streaming").setLevel(args.log_level)
@@ -98,25 +137,59 @@ def set_logging(args,logger):
 
 def simulation_args(parser):
     simulation_group = parser.add_argument_group("Arguments for simulation from file")
-    simulation_group.add_argument('audio_path', type=str, help="Filename of 16kHz mono channel wav, or directory containing multiple wav files for batch inference.")
-    simulation_group.add_argument('--start_at', type=float, default=0.0, help='Start processing audio at this time.')
-    # TODO: offline mode is not implemented in SimulStreaming yet
-#    simulation_group.add_argument('--offline', action="store_true", default=False, help='Offline mode.')
-    simulation_group.add_argument('--comp_unaware', action="store_true", default=False, help='Computationally unaware simulation.')
-    simulation_group.add_argument('--batch', action="store_true", default=False, help='Enable batch processing for directory input.')
-    simulation_group.add_argument('--audio-extensions', type=str, default='wav,mp3,flac,m4a', help='Comma-separated list of audio file extensions to process in batch mode.')
-    simulation_group.add_argument('--num-audios', type=int, default=None, help='Limit the number of audio files to process (useful for testing). Process all files if not specified.')
-    
-    # Evaluation arguments
+    simulation_group.add_argument(
+        'audio_path',
+        type=str,
+        help="Filename of 16kHz mono channel wav, or directory containing multiple wav files for batch inference."
+    )
+    simulation_group.add_argument(
+        '--start_at',
+        type=float,
+        default=0.0,
+        help='Start processing audio at this time.'
+    )
+    simulation_group.add_argument(
+        '--comp_unaware',
+        action="store_true",
+        default=False,
+        help='Computationally unaware simulation.'
+    )
+    simulation_group.add_argument(
+        '--batch',
+        action="store_true",
+        default=False,
+        help='Enable batch processing for directory input.'
+    )
+    simulation_group.add_argument(
+        '--audio-extensions',
+        type=str,
+        default='wav,mp3,flac,m4a',
+        help='Comma-separated list of audio file extensions to process in batch mode.'
+    )
+    simulation_group.add_argument(
+        '--num-audios',
+        type=int,
+        default=None,
+        help='Limit the number of audio files to process (useful for testing). Process all files if not specified.'
+    )
+
     eval_group = parser.add_argument_group("Evaluation arguments")
-    eval_group.add_argument('--reference-file', type=str, default=None, help='Path to JSON file containing reference transcriptions (with audio_path and text_en fields). If provided, evaluation will be performed automatically.')
-    eval_group.add_argument('--eval-output', type=str, default=None, help='Path to save evaluation results JSON (default: <logdir>/evaluation_results.json)')
+    eval_group.add_argument(
+        '--reference-file',
+        type=str,
+        default=None,
+        help='Path to JSON file containing reference transcriptions (with audio_path and text_en fields). If provided, evaluation will be performed automatically.'
+    )
+    eval_group.add_argument(
+        '--eval-output',
+        type=str,
+        default=None,
+        help='Path to save evaluation results JSON (default: <logdir>/evaluation_results.json)'
+    )
 
 
 def get_audio_files(path, extensions):
     """Get list of audio files from a path (file or directory)."""
-    import os
-    
     if os.path.isfile(path):
         return [path]
     elif os.path.isdir(path):
@@ -133,20 +206,17 @@ def get_audio_files(path, extensions):
 
 def process_single_audio_file(audio_path, args, asr, online, min_chunk, factory):
     """Process a single audio file and return transcriptions."""
-    import os
-
     if args.vac:
         online.is_currently_final = False
-    
+
     SAMPLING_RATE = 16000
-    duration = len(load_audio(audio_path))/SAMPLING_RATE
+    duration = len(load_audio(audio_path)) / SAMPLING_RATE
     logger.info(f"Processing: {os.path.basename(audio_path)} - Duration: {duration:.2f}s")
-    
+
     beg = args.start_at
-    # start_time = time.time()  # Actual start time for tracking purposes
     start_time = None
     start = time.time() - beg  # Offset start for elapsed time calculation
-    
+
     # List to store all transcription segments for this file
     all_transcriptions = []
 
@@ -166,7 +236,7 @@ def process_single_audio_file(audio_path, args, asr, online, min_chunk, factory)
             text = iteration_output['text']
             logger.debug(f"{now * 1000:.4f} {start_ts * 1000:.0f} {end_ts * 1000:.0f} {text}")
             print(f"{now * 1000:.4f} {start_ts * 1000:.0f} {end_ts * 1000:.0f} {text}", flush=True)
-            
+
             # Store the transcription segment
             all_transcriptions.append({
                 'start': start_ts,
@@ -179,8 +249,8 @@ def process_single_audio_file(audio_path, args, asr, online, min_chunk, factory)
     first_token_latency = None
     last_token_latency = None
     last_speech_end = None
-    
-    if args.offline: ## offline mode processing (for testing/debugging)
+
+    if args.offline:  # offline mode processing (for testing/debugging)
         a = load_audio(audio_path)
         online.insert_audio_chunk(a)
         try:
@@ -190,7 +260,7 @@ def process_single_audio_file(audio_path, args, asr, online, min_chunk, factory)
         else:
             output_transcript(o)
         now = None
-    elif args.comp_unaware:  # computational unaware mode 
+    elif args.comp_unaware:  # computational unaware mode
         end = beg + min_chunk
         while True:
             a = load_audio_chunk(audio_path, beg, end)
@@ -198,7 +268,7 @@ def process_single_audio_file(audio_path, args, asr, online, min_chunk, factory)
             online.insert_audio_chunk(a)
             if first_token_latency is None:
                 start_time = time.time()
-            
+
             last_speech_end = time.time()
             try:
                 o = online.process_iter(start_time=start_time)
@@ -217,9 +287,9 @@ def process_single_audio_file(audio_path, args, asr, online, min_chunk, factory)
 
             if end >= duration:
                 break
-            
+
             beg = end
-            
+
             if end + min_chunk > duration:
                 end = duration
             else:
@@ -229,8 +299,8 @@ def process_single_audio_file(audio_path, args, asr, online, min_chunk, factory)
         end = 0
         while True:
             now = time.time() - start
-            if now < min(end+min_chunk, duration):
-                time.sleep(min(end+min_chunk, duration)-now)
+            if now < min(end + min_chunk, duration):
+                time.sleep(min(end + min_chunk, duration) - now)
             end = time.time() - start
             logger.info(f"The system received audio from {beg:.2f} s to {end:.2f} s")
             a = load_audio_chunk(audio_path, beg, end)
@@ -288,7 +358,7 @@ def process_single_audio_file(audio_path, args, asr, online, min_chunk, factory)
         print("FINAL TRANSCRIPTION:")
         print(final_transcription)
         print("=" * 80)
-    
+
     return {
         'file': audio_path,
         'duration': duration,
@@ -330,22 +400,22 @@ def main_simulation_from_file(factory, add_args=None):
 
     # Check if batch processing is needed
     is_directory = os.path.isdir(audio_path)
-    
+
     if is_directory or args.batch:
         # Batch processing mode
         audio_files = get_audio_files(audio_path, args.audio_extensions)
-        
+
         if not audio_files:
             logger.error(f"No audio files found in: {audio_path}")
             sys.exit(1)
-        
+
         # Limit number of files if specified
         if args.num_audios is not None and args.num_audios > 0:
             audio_files = audio_files[:args.num_audios]
             logger.info(f"Limiting to first {args.num_audios} audio files")
-        
+
         logger.info(f"Found {len(audio_files)} audio files for batch processing")
-        
+
         # Initialize ASR and online processor once
         if args.vac:
             # args.min_chunk_size = args.vac_chunk_size
@@ -353,12 +423,12 @@ def main_simulation_from_file(factory, add_args=None):
         else:
             min_chunk = args.min_chunk_size
         asr, online = asr_factory(args, factory)
-        
+
         # Warm up the ASR with first file
         a = load_audio_chunk(audio_files[0], 0, 1)
         asr.warmup(a)
         print("ASR warmup complete.\n\n")
-        
+
         # Process all files
         batch_results = []
         for idx, audio_file in enumerate(audio_files, 1):
@@ -374,19 +444,19 @@ def main_simulation_from_file(factory, add_args=None):
                 import traceback
                 traceback.print_exc()
                 raise e
-        
+
         # Save batch results
         if args.logdir and batch_results:
             os.makedirs(args.logdir, exist_ok=True)
-            
+
             # Calculate average FTL
             ftl_values = [r['first_token_latency'] for r in batch_results if r.get('first_token_latency') is not None]
             avg_ftl = sum(ftl_values) / len(ftl_values) if ftl_values else None
-            
+
             # Calculate average LTL (last token latency)
             ltl_values = [r['last_token_latency'] for r in batch_results if r.get('last_token_latency') is not None]
             avg_ltl = sum(ltl_values) / len(ltl_values) if ltl_values else None
-            
+
             # Save summary JSON
             summary_file = os.path.join(args.logdir, "batch_transcriptions.json")
             summary_data = {
@@ -408,29 +478,29 @@ def main_simulation_from_file(factory, add_args=None):
             with open(summary_file, 'w', encoding='utf-8') as f:
                 json.dump(summary_data, f, indent=2, ensure_ascii=False)
             logger.info(f"Batch summary saved to: {summary_file}")
-            
-        
+
+
         # Print final summary
         print("\n" + "=" * 80)
         print("BATCH PROCESSING COMPLETE")
         print("=" * 80)
         print(f"Total files processed: {len(batch_results)}/{len(audio_files)}")
-        
+
         # Print average FTL if available
         if batch_results:
             ftl_values = [r['first_token_latency'] for r in batch_results if r.get('first_token_latency') is not None]
             if ftl_values:
                 avg_ftl_ms = (sum(ftl_values) / len(ftl_values)) * 1000
                 print(f"Average First Token Latency: {avg_ftl_ms:.2f} ms")
-            
+
             # Print average LTL if available
             ltl_values = [r['last_token_latency'] for r in batch_results if r.get('last_token_latency') is not None]
             if ltl_values:
                 avg_ltl_ms = (sum(ltl_values) / len(ltl_values)) * 1000
                 print(f"Average Last Token Latency: {avg_ltl_ms:.2f} ms")
-        
+
         print("=" * 80)
-        
+
         # Run evaluation if reference file is provided
         if args.reference_file and batch_results:
             logger.info(f"\nRunning evaluation against reference file: {args.reference_file}")
@@ -440,10 +510,10 @@ def main_simulation_from_file(factory, add_args=None):
                 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
                 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                 from evaluate import load_references, evaluate_transcriptions
-                
+
                 # Load references
                 references = load_references(args.reference_file, language=args.lan)
-                
+
                 # Create generated transcriptions map from batch results
                 generated = {}
                 ftl_map = {}  # Map filename to FTL
@@ -457,21 +527,21 @@ def main_simulation_from_file(factory, add_args=None):
                     # Store LTL for this file
                     if result.get('last_token_latency') is not None:
                         ltl_map[filename] = result['last_token_latency']
-                
+
                 # Evaluate
                 evaluation_results = evaluate_transcriptions(references, generated, args.lan)
-                
+
                 # Add FTL and LTL information to evaluation results
                 # Calculate average FTL and LTL for matched files
                 ftl_values = [r['first_token_latency'] for r in batch_results if r.get('first_token_latency') is not None]
                 avg_ftl = sum(ftl_values) / len(ftl_values) if ftl_values else None
-                
+
                 ltl_values = [r['last_token_latency'] for r in batch_results if r.get('last_token_latency') is not None]
                 avg_ltl = sum(ltl_values) / len(ltl_values) if ltl_values else None
-                
+
                 evaluation_results['average_first_token_latency_ms'] = avg_ftl * 1000 if avg_ftl is not None else None
                 evaluation_results['average_last_token_latency_ms'] = avg_ltl * 1000 if avg_ltl is not None else None
-                
+
                 # Add per-file FTL and LTL to per_file_results
                 for result in evaluation_results['per_file_results']:
                     filename = result['file']
@@ -479,7 +549,7 @@ def main_simulation_from_file(factory, add_args=None):
                         result['first_token_latency_ms'] = ftl_map[filename] * 1000
                     if filename in ltl_map:
                         result['last_token_latency_ms'] = ltl_map[filename] * 1000
-                
+
                 # Print evaluation summary
                 print("\n" + "=" * 80)
                 print("EVALUATION RESULTS")
@@ -494,7 +564,7 @@ def main_simulation_from_file(factory, add_args=None):
                 if evaluation_results.get('average_last_token_latency_ms') is not None:
                     print(f"Average Last Token Latency: {evaluation_results['average_last_token_latency_ms']:.2f} ms")
                 print("=" * 80)
-                
+
                 # Print per-file results if in INFO or DEBUG mode
                 if args.log_level in ['DEBUG', 'INFO']:
                     print("\nPer-file CER/MER:")
@@ -506,22 +576,22 @@ def main_simulation_from_file(factory, add_args=None):
                             f"{result['file']:40s} CER: {result['cer']:.4f} ({result['cer']*100:.2f}%)  "
                             f"MER: {result['mer']:.4f} ({result['mer']*100:.2f}%){ftl_str}{ltl_str}"
                         )
-                
+
                 # Save evaluation results
                 eval_output = args.eval_output or os.path.join(args.logdir, 'evaluation_results.json')
                 with open(eval_output, 'w', encoding='utf-8') as f:
                     json.dump(evaluation_results, f, indent=2, ensure_ascii=False)
                 logger.info(f"\nEvaluation results saved to: {eval_output}")
-                
+
             except Exception as e:
                 logger.error(f"Error during evaluation: {e}")
                 import traceback
                 traceback.print_exc()
-        
+
     else:
         # Single file processing mode (original behavior)
         SAMPLING_RATE = 16000
-        duration = len(load_audio(audio_path))/SAMPLING_RATE
+        duration = len(load_audio(audio_path)) / SAMPLING_RATE
         logger.info("Audio duration is: %2.2f seconds" % duration)
 
         if args.vac:
@@ -532,7 +602,7 @@ def main_simulation_from_file(factory, add_args=None):
         asr, online = asr_factory(args, factory)
 
         # load the audio into the LRU cache before we start the timer
-        a = load_audio_chunk(audio_path,0,1)
+        a = load_audio_chunk(audio_path, 0, 1)
 
         # warm up the ASR because the very first transcribe takes much more time than the other
         asr.warmup(a)
@@ -540,7 +610,7 @@ def main_simulation_from_file(factory, add_args=None):
 
         # Process the single file
         result = process_single_audio_file(audio_path, args, asr, online, min_chunk, factory)
-        
+
         # Save single file result if logdir is specified
         if args.logdir:
             os.makedirs(args.logdir, exist_ok=True)
@@ -548,7 +618,7 @@ def main_simulation_from_file(factory, add_args=None):
             with open(transcript_file, 'w', encoding='utf-8') as f:
                 f.write(result['final_text'])
             logger.info(f"Transcription saved to: {transcript_file}")
-        
+
         # Run evaluation if reference file is provided
         if args.reference_file and result['final_text']:
             logger.info(f"\nRunning evaluation against reference file: {args.reference_file}")
@@ -558,21 +628,21 @@ def main_simulation_from_file(factory, add_args=None):
                 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
                 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                 from evaluate import load_references, calculate_cer, calculate_mer
-                
+
                 # Load references
                 references = load_references(args.reference_file, language=args.lan)
-                
+
                 # Find matching reference
                 filename = os.path.basename(audio_path)
-                
+
                 ref_text = None
                 if filename in references:
                     ref_text = references[filename]
-                
+
                 if ref_text:
                     cer = calculate_cer(ref_text, result['final_text'], args.lan)
                     mer = calculate_mer(ref_text, result['final_text'], args.lan)
-                    
+
                     # Print evaluation result
                     print("\n" + "=" * 80)
                     print("EVALUATION RESULT")
@@ -581,7 +651,7 @@ def main_simulation_from_file(factory, add_args=None):
                     print(f"CER: {cer:.4f} ({cer*100:.2f}%)")
                     print(f"MER: {mer:.4f} ({mer*100:.2f}%)")
                     print("=" * 80)
-                    
+
                     # Save evaluation result if logdir is specified
                     if args.logdir:
                         eval_output = args.eval_output or os.path.join(args.logdir, 'evaluation_result.json')
@@ -601,10 +671,10 @@ def main_simulation_from_file(factory, add_args=None):
                         logger.info(f"Evaluation result saved to: {eval_output}")
                 else:
                     logger.warning(f"No reference found for {filename} in reference file")
-                    
+
             except Exception as e:
                 logger.error(f"Error during evaluation: {e}")
                 import traceback
                 traceback.print_exc()
-    
+
 
