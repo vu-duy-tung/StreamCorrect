@@ -26,7 +26,15 @@ class VACOnlineASRProcessor(OnlineProcessorInterface):
     When it detects end of speech (non-voice for 500ms), it makes OnlineASRProcessor to end the utterance immediately.
     '''
 
-    def __init__(self, online_chunk_size, online, min_buffered_length=1):
+    def __init__(
+        self,
+        online_chunk_size,
+        online,
+        min_buffered_length=1,
+        use_error_corrector=False,
+        error_corrector_ckpt=None,
+        error_corrector_base_model=None,
+    ):
         self.online_chunk_size = online_chunk_size
         self.online = online
         self.min_buffered_frames = int(min_buffered_length * self.SAMPLING_RATE)
@@ -40,38 +48,45 @@ class VACOnlineASRProcessor(OnlineProcessorInterface):
 
         self.init()
 
+        # Error corrector initialization
         self._corrector_model = None
         self._corrector_processor = None
 
-        base_model_id = "fixie-ai/ultravox-v0_5-llama-3_2-1b"
-        checkpoint_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "SpeechLMCorrector/ultravox_lora_continued_more_erroneous_5/checkpoint-2895"
-        )
-        logger.info(f"Loading SpeechLM corrector from {checkpoint_path}")
+        if use_error_corrector:
+            base_model_id = error_corrector_base_model or "fixie-ai/ultravox-v0_5-llama-3_2-1b"
+            if error_corrector_ckpt:
+                checkpoint_path = error_corrector_ckpt
+            else:
+                checkpoint_path = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                    "SpeechLMCorrector/ultravox_lora_continued_more_erroneous_5/checkpoint-2895"
+                )
+            logger.info(f"Loading SpeechLM corrector from {checkpoint_path}")
 
-        # Load processor
-        self._corrector_processor = AutoProcessor.from_pretrained(
-            base_model_id,
-            trust_remote_code=True
-        )
+            # Load processor
+            self._corrector_processor = AutoProcessor.from_pretrained(
+                base_model_id,
+                trust_remote_code=True
+            )
 
-        # Load base model
-        base_model = AutoModel.from_pretrained(
-            base_model_id,
-            torch_dtype=torch.float32,
-            trust_remote_code=True,
-            device_map="cuda",
-        )
+            # Load base model
+            base_model = AutoModel.from_pretrained(
+                base_model_id,
+                torch_dtype=torch.float32,
+                trust_remote_code=True,
+                device_map="cuda",
+            )
 
-        # Load LoRA adapter
-        self._corrector_model = PeftModel.from_pretrained(
-            base_model,
-            checkpoint_path,
-            is_trainable=False,
-        )
-        self._corrector_model.eval()
-        logger.info("SpeechLM corrector loaded successfully")
+            # Load LoRA adapter
+            self._corrector_model = PeftModel.from_pretrained(
+                base_model,
+                checkpoint_path,
+                is_trainable=False,
+            )
+            self._corrector_model.eval()
+            logger.info("SpeechLM corrector loaded successfully")
+        else:
+            logger.info("Error corrector disabled")
 
     @property
     def first_token_latency(self):

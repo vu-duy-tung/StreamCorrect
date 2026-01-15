@@ -91,6 +91,29 @@ def simulwhisper_args(parser):
         )
     )
 
+    group = parser.add_argument_group("Error corrector")
+    group.add_argument(
+        "--use-error-corrector",
+        action="store_true",
+        default=False,
+        help="Enable the SpeechLM error corrector to post-process transcriptions."
+    )
+    group.add_argument(
+        "--error-corrector-ckpt",
+        type=str,
+        default=None,
+        help=(
+            "Path to the error corrector LoRA checkpoint directory. "
+            "If not provided, uses the default checkpoint path."
+        )
+    )
+    group.add_argument(
+        "--error-corrector-base-model",
+        type=str,
+        default="fixie-ai/ultravox-v0_5-llama-3_2-1b",
+        help="Base model ID for the error corrector."
+    )
+
     group = parser.add_argument_group("Prompt and context")
     group.add_argument(
         "--init_prompt",

@@ -5,7 +5,7 @@
 set -e  # Exit on error
 
 # Configuration
-AUDIO_PATH="${AUDIO_PATH:-/data/mino/AISHELL-1/data_aishell/wav/train/S0601/BAC009S0601W0468.wav}"
+AUDIO_PATH="${AUDIO_PATH:-/data/mino/AISHELL-1/data_aishell/wav/test/testset/BAC009S0916W0458.wav}"
 REFERENCE_FILE="${REFERENCE_FILE:-/data/mino/AISHELL-1/data_aishell/transcript/reference.json}"
 MODEL_PATH="${MODEL_PATH:-large-v2.pt}"
 OUTPUT_DIR="${OUTPUT_DIR:-./example_output}"
@@ -14,6 +14,11 @@ OUTPUT_DIR="${OUTPUT_DIR%/}/$(basename "${AUDIO_PATH%.*}")"
 
 VAC_CHUNK_SIZE="${VAC_CHUNK_SIZE:-0.5}"
 BEAM_SIZE="${BEAM_SIZE:-4}"
+
+# Error corrector configuration
+USE_ERROR_CORRECTOR="${USE_ERROR_CORRECTOR:-true}"
+ERROR_CORRECTOR_CKPT="${ERROR_CORRECTOR_CKPT:-SpeechLMCorrector/ultravox_lora_continued_more_erroneous_6/checkpoint-1158}"
+ERROR_CORRECTOR_BASE_MODEL="${ERROR_CORRECTOR_BASE_MODEL:-fixie-ai/ultravox-v0_5-llama-3_2-1b}"
 
 export AUDIO_PATH
 
@@ -29,20 +34,38 @@ echo "  Reference file: $REFERENCE_FILE"
 echo "  Output directory: $OUTPUT_DIR"
 echo "  VAC chunk size: $VAC_CHUNK_SIZE seconds"
 echo "  Beam size: $BEAM_SIZE"
+echo "  Use error corrector: $USE_ERROR_CORRECTOR"
+if [ -n "$ERROR_CORRECTOR_CKPT" ]; then
+    echo "  Error corrector checkpoint: $ERROR_CORRECTOR_CKPT"
+fi
 echo ""
 
-python simulstreaming_whisper.py "$AUDIO_PATH" \
-    --model_path "$MODEL_PATH" \
-    --logdir "$OUTPUT_DIR" \
+# Build command with optional error corrector flags
+CMD="python simulstreaming_whisper.py \"$AUDIO_PATH\" \
+    --model_path \"$MODEL_PATH\" \
+    --logdir \"$OUTPUT_DIR\" \
     --vac \
-    --vac-chunk-size "$VAC_CHUNK_SIZE" \
+    --vac-chunk-size $VAC_CHUNK_SIZE \
     --min-chunk-size 0.01 \
-    --lan "zh" \
-    --beams "$BEAM_SIZE" \
+    --lan \"zh\" \
+    --beams $BEAM_SIZE \
     --frame_threshold 20 \
-    --reference-file "$REFERENCE_FILE" \
+    --reference-file \"$REFERENCE_FILE\" \
     --log-level DEBUG \
-    --comp_unaware
+    --comp_unaware"
+
+# Add error corrector flags if enabled
+if [ "$USE_ERROR_CORRECTOR" = "true" ]; then
+    CMD="$CMD --use-error-corrector"
+    if [ -n "$ERROR_CORRECTOR_CKPT" ]; then
+        CMD="$CMD --error-corrector-ckpt \"$ERROR_CORRECTOR_CKPT\""
+    fi
+    if [ -n "$ERROR_CORRECTOR_BASE_MODEL" ]; then
+        CMD="$CMD --error-corrector-base-model \"$ERROR_CORRECTOR_BASE_MODEL\""
+    fi
+fi
+
+eval $CMD
 
 echo ""
 echo "=========================================="
@@ -59,6 +82,8 @@ with open(path, encoding="utf-8") as f:
         data = json.load(f)
 print(f"  CER: {data.get('cer', 'N/A')}")
 print(f"  MER: {data.get('mer', 'N/A')}")
+print(f"  FTL: {data.get('first_token_latency_ms', 'N/A')} ms")
+print(f"  LTL: {data.get('last_token_latency_ms', 'N/A')} ms")
 print(f"  Full JSON: {path}")
 PY
 fi

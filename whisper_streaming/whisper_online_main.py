@@ -11,6 +11,8 @@ import time
 import logging
 import random
 from functools import lru_cache
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import get_context
 
 import torch
 import numpy as np
@@ -113,7 +115,13 @@ def asr_factory(args, factory=None):
     # Create the OnlineASRProcessor
     if args.vac:
         from whisper_streaming.vac_online_processor import VACOnlineASRProcessor
-        online = VACOnlineASRProcessor(args.min_chunk_size, online)
+        online = VACOnlineASRProcessor(
+            args.min_chunk_size,
+            online,
+            use_error_corrector=getattr(args, 'use_error_corrector', False),
+            error_corrector_ckpt=getattr(args, 'error_corrector_ckpt', None),
+            error_corrector_base_model=getattr(args, 'error_corrector_base_model', None),
+        )
 
     if args.task == "translate":
         if args.model_path.endswith(".en.pt"):
@@ -172,6 +180,18 @@ def simulation_args(parser):
         default=None,
         help='Limit the number of audio files to process (useful for testing). Process all files if not specified.'
     )
+    simulation_group.add_argument(
+        '--num-workers',
+        type=int,
+        default=1,
+        help='Number of parallel workers for batch processing. Each worker gets its own GPU and model instance.'
+    )
+    simulation_group.add_argument(
+        '--gpus',
+        type=str,
+        default='0,1,2,3,4,5,6,7',
+        help='Comma-separated list of GPU IDs to use for parallel processing (e.g., "0,1,2,3").'
+    )
 
     eval_group = parser.add_argument_group("Evaluation arguments")
     eval_group.add_argument(
@@ -202,6 +222,161 @@ def get_audio_files(path, extensions):
         return audio_files
     else:
         raise ValueError(f"Path does not exist: {path}")
+
+
+def _worker_init(gpu_id):
+    """Initialize worker process with specific GPU."""
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    # Clear any cached audio from parent process
+    load_audio.cache_clear()
+
+
+def _worker_process_files(worker_id, gpu_id, audio_files, args_dict, factory_module, factory_name):
+    """
+    Worker function that processes a list of audio files on a specific GPU.
+    Each worker has its own ASR model and online processor instance.
+    
+    Args:
+        worker_id: Worker identifier for logging
+        gpu_id: GPU ID to use (will be set as CUDA_VISIBLE_DEVICES)
+        audio_files: List of audio file paths to process
+        args_dict: Dictionary of arguments (converted from argparse.Namespace)
+        factory_module: Module name containing the factory function
+        factory_name: Name of the factory function
+    
+    Returns:
+        List of results for each processed file
+    """
+    import argparse
+    import importlib
+    
+    # Set GPU for this worker BEFORE importing torch/loading models
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    
+    # Clear LRU cache to avoid sharing memory with parent
+    load_audio.cache_clear()
+    
+    # Reconstruct args from dict
+    args = argparse.Namespace(**args_dict)
+    
+    # Import and get the factory function
+    module = importlib.import_module(factory_module)
+    factory = getattr(module, factory_name)
+    
+    # Set up logging for this worker
+    worker_logger = logging.getLogger(f"worker_{worker_id}")
+    logging.basicConfig(format=f'[Worker {worker_id} GPU {gpu_id}] %(levelname)s\t%(message)s')
+    worker_logger.setLevel(args.log_level)
+    
+    worker_logger.info(f"Worker {worker_id} starting on GPU {gpu_id} with {len(audio_files)} files")
+    
+    # Determine min_chunk
+    if args.vac:
+        min_chunk = args.vac_chunk_size
+    else:
+        min_chunk = args.min_chunk_size
+    
+    # Initialize ASR and online processor for this worker (isolated instance)
+    asr, online = asr_factory(args, factory)
+    
+    # Warm up the ASR
+    if audio_files:
+        a = load_audio_chunk(audio_files[0], 0, 1)
+        asr.warmup(a)
+        worker_logger.info(f"Worker {worker_id} ASR warmup complete")
+    
+    # Process all assigned files
+    results = []
+    for idx, audio_file in enumerate(audio_files, 1):
+        worker_logger.info(f"Worker {worker_id}: Processing file {idx}/{len(audio_files)}: {os.path.basename(audio_file)}")
+        
+        try:
+            result = process_single_audio_file(audio_file, args, asr, online, min_chunk, factory)
+            results.append(result)
+        except Exception as e:
+            worker_logger.error(f"Worker {worker_id}: Error processing {audio_file}: {e}")
+            import traceback
+            traceback.print_exc()
+            # Continue with next file instead of failing completely
+            results.append({
+                'file': audio_file,
+                'duration': 0,
+                'segments': [],
+                'final_text': '',
+                'first_token_latency': None,
+                'last_token_latency': None,
+                'error': str(e)
+            })
+    
+    worker_logger.info(f"Worker {worker_id} completed {len(results)} files")
+    return results
+
+
+def run_parallel_batch_processing(audio_files, args, factory_module, factory_name, num_workers, gpu_list):
+    """
+    Run batch processing in parallel using multiple workers on different GPUs.
+    
+    Args:
+        audio_files: List of all audio files to process
+        args: Parsed arguments
+        factory_module: Module name containing the factory function
+        factory_name: Name of the factory function  
+        num_workers: Number of parallel workers
+        gpu_list: List of GPU IDs to use
+    
+    Returns:
+        List of all results from all workers
+    """
+    # Distribute files across workers (round-robin assignment)
+    worker_files = [[] for _ in range(num_workers)]
+    for idx, audio_file in enumerate(audio_files):
+        worker_idx = idx % num_workers
+        worker_files[worker_idx].append(audio_file)
+    
+    # Assign GPUs to workers (round-robin if more workers than GPUs)
+    worker_gpus = [gpu_list[i % len(gpu_list)] for i in range(num_workers)]
+    
+    # Convert args to dict for pickling (Namespace objects can have issues)
+    args_dict = vars(args).copy()
+    
+    logger.info(f"Starting parallel batch processing with {num_workers} workers on GPUs: {worker_gpus}")
+    for i in range(num_workers):
+        logger.info(f"  Worker {i}: GPU {worker_gpus[i]}, {len(worker_files[i])} files")
+    
+    all_results = []
+    
+    # Use 'spawn' context to ensure clean process state (important for CUDA)
+    ctx = get_context('spawn')
+    
+    with ProcessPoolExecutor(max_workers=num_workers, mp_context=ctx) as executor:
+        # Submit all worker tasks
+        futures = {}
+        for worker_id in range(num_workers):
+            if worker_files[worker_id]:  # Only submit if worker has files
+                future = executor.submit(
+                    _worker_process_files,
+                    worker_id,
+                    worker_gpus[worker_id],
+                    worker_files[worker_id],
+                    args_dict,
+                    factory_module,
+                    factory_name
+                )
+                futures[future] = worker_id
+        
+        # Collect results as they complete
+        for future in as_completed(futures):
+            worker_id = futures[future]
+            try:
+                results = future.result()
+                all_results.extend(results)
+                logger.info(f"Worker {worker_id} returned {len(results)} results")
+            except Exception as e:
+                logger.error(f"Worker {worker_id} failed with exception: {e}")
+                import traceback
+                traceback.print_exc()
+    
+    return all_results
 
 
 def process_single_audio_file(audio_path, args, asr, online, min_chunk, factory):
@@ -416,34 +591,53 @@ def main_simulation_from_file(factory, add_args=None):
 
         logger.info(f"Found {len(audio_files)} audio files for batch processing")
 
-        # Initialize ASR and online processor once
-        if args.vac:
-            # args.min_chunk_size = args.vac_chunk_size
-            min_chunk = args.vac_chunk_size
+        # Parse GPU list
+        gpu_list = [g.strip() for g in args.gpus.split(',')]
+        num_workers = min(args.num_workers, len(audio_files))  # Don't create more workers than files
+        
+        if num_workers > 1:
+            # Parallel processing mode
+            logger.info(f"Using parallel processing with {num_workers} workers on GPUs: {gpu_list}")
+            
+            # Get factory module and function name for subprocess import
+            factory_module = factory.__module__
+            factory_name = factory.__name__
+            
+            # Run parallel batch processing
+            batch_results = run_parallel_batch_processing(
+                audio_files, args, factory_module, factory_name, num_workers, gpu_list
+            )
         else:
-            min_chunk = args.min_chunk_size
-        asr, online = asr_factory(args, factory)
+            # Sequential processing mode (original behavior)
+            logger.info("Using sequential processing (single worker)")
+            
+            # Initialize ASR and online processor once
+            if args.vac:
+                min_chunk = args.vac_chunk_size
+            else:
+                min_chunk = args.min_chunk_size
+            asr, online = asr_factory(args, factory)
 
-        # Warm up the ASR with first file
-        a = load_audio_chunk(audio_files[0], 0, 1)
-        asr.warmup(a)
-        print("ASR warmup complete.\n\n")
+            # Warm up the ASR with first file
+            a = load_audio_chunk(audio_files[0], 0, 1)
+            asr.warmup(a)
+            print("ASR warmup complete.\n\n")
 
-        # Process all files
-        batch_results = []
-        for idx, audio_file in enumerate(audio_files, 1):
-            logger.info(f"\n{'='*80}")
-            logger.info(f"Processing file {idx}/{len(audio_files)}: {os.path.basename(audio_file)}")
-            logger.info(f"{'='*80}")
+            # Process all files sequentially
+            batch_results = []
+            for idx, audio_file in enumerate(audio_files, 1):
+                logger.info(f"\n{'='*80}")
+                logger.info(f"Processing file {idx}/{len(audio_files)}: {os.path.basename(audio_file)}")
+                logger.info(f"{'='*80}")
 
-            try:
-                result = process_single_audio_file(audio_file, args, asr, online, min_chunk, factory)
-                batch_results.append(result)
-            except Exception as e:
-                logger.error(f"Error processing {audio_file}: {e}")
-                import traceback
-                traceback.print_exc()
-                raise e
+                try:
+                    result = process_single_audio_file(audio_file, args, asr, online, min_chunk, factory)
+                    batch_results.append(result)
+                except Exception as e:
+                    logger.error(f"Error processing {audio_file}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    raise e
 
         # Save batch results
         if args.logdir and batch_results:
