@@ -1,5 +1,9 @@
-# Real-Time Transcription
+# StreamCorrect: Bringing Offline ASR Performance to Streaming via Error Correction
 
+#### StreamCorrect
+StreamCorrect is an error correction model for streaming ASR that learns to map erroneous partial hypotheses produced by streaming ASR systems to corrected transcripts. It fine-tunes a Speech Language Model to leverage its strong language modeling capability for post-editing high-quality offline ASR outputs in real time. StreamCorrect is integrated with SimulStreaming to refine incremental ASR predictions under strict latency constraints.
+
+#### About SimulStreaming backbone
 SimulStreaming implements Whisper model for translation and transcription in
 simultaneous mode (which is known as *streaming* in the ASR community).
 SimulStreaming uses the state-of-the-art simultaneous policy AlignAtt, which
@@ -12,20 +16,6 @@ SimulStreaming originates as [Charles University (CUNI) submission to the IWSLT
 and high quality. It is among the top performing systems in IWSLT 2025
 Simultaneous Shared Task.
 
-## Repository Structure
-### Key Files
-- `evaluate.py` - Evaluation script for computing ASR metrics (currently CER)
-- `whisper_streaming/whisper_online_main.py` - Main entry point for real-time streaming transcription with Whisper model
-
-## Current First Token Latency Implementation
-- `start_time` parameter is set after the first non-speech audio chunk is received (in `whisper_streaming/whisper_online_main.py`, line 200)
-- The main iteration loop, including adding new audio chunk and inferencing the Whisper model is in `whisper_streaming/whisper_online_main.py`, from line 193 to line 227
-- `start_time` will be passed to the ASR online processor to calculate first token latency (in `whisper_streaming/whisper_online_main.py`, line 204) and `first_token_latency` is updated if the model generates the first token.
-- In the Whisper model inference, `first_token_latency` will be updated when the first token is generated, which is equal to the current time minus the `start_time` we passed to the model (in `simul_whisper/simul_whisper.py`, from line 589 to line 593)
-
-## Current Last Token Latency Implementation
-- `last_token_latency` is updated in `whisper_streaming/whisper_online_main.py`, from line 213 to line 215.
-
 ## Preparation
 ### Install packages
 
@@ -34,6 +24,9 @@ conda create -n streamingasr python=3.10
 conda activate streamingasr
 bash install.sh
 ```
+
+### Model checkpoints
+Offline ASR models and Error Correction model could be downloaded [here](https://drive.google.com/drive/folders/1h2tOl6gs93SYZo7fTsc1JYmsOyyRZFLf?usp=sharing)
 
 ### Data preparation
 Download WSYue-ASR-eval for testing:
@@ -59,14 +52,14 @@ rm -rf WSYue-ASR
 
 ## Inference
 
-- Inference of whisper-large-v3 model with SimulStreaming on a single `.wav` file
+- Inference of SimulStreaming with Error Corrector on a single `.wav` file
 ```bash
-bash run_single_eval.sh
+bash runs/run_single_eval_aishell.sh
 ```
 
-- Inference of whisper-large-v3 model with SimulStreaming on a folder of `.wav` files
+- Inference of SimulStreaming with Error Corrector on a folder of `.wav` files
 ```bash
-bash run_batch_eval_wsyue.sh
+bash runs/run_batch_eval_aishell.sh
 ```
 
 - Output file will be saved to `save_dir/streaming_medium-yue_wsyue_results/evaluation_results.json` with format similar to the follows:
@@ -109,4 +102,4 @@ bash run_batch_eval_wsyue.sh
 - [x] Preliminary test SimulStreaming on Cantonese (WSYue)
 - [x] Add `whisper-medium-yue` 
 - [x] Add Last Token Latency
-- [ ] Add Error Corrector with Ultravox as backbone
+- [x] Add Error Corrector with Ultravox as backbone
