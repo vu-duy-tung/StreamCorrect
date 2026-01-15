@@ -7,9 +7,9 @@ set -e  # Exit on error
 # Configuration
 AUDIO_DIR="/data/mino/AISHELL-1/data_aishell/wav/test/testset"
 REFERENCE_FILE="/data/mino/AISHELL-1/data_aishell/transcript/reference.json"
-MODEL_PATH="large-v2.pt"
-OUTPUT_DIR="save_dir/streaming_largev2zh-20_10000_aishell_results/"
-NUM_FILES=10000
+MODEL_PATH="large-v3.pt"
+OUTPUT_DIR="save_dir/streaming_largev3-05_100_aishell_results_without_ec/"
+NUM_FILES=100
 
 echo ""
 echo "=========================================="
@@ -30,7 +30,7 @@ python simulstreaming_whisper.py "$AUDIO_DIR" \
     --model_path "$MODEL_PATH" \
     --logdir "$OUTPUT_DIR" \
     --vac \
-    --vac-chunk-size 2.0 \
+    --vac-chunk-size 0.5 \
     --min-chunk-size 0.01 \
     --reference-file "$REFERENCE_FILE" \
     --log-level INFO \
@@ -39,6 +39,7 @@ python simulstreaming_whisper.py "$AUDIO_DIR" \
     --frame_threshold 20 \
     --num-audios "$NUM_FILES" \
     --comp_unaware
+
 
 echo ""
 echo "=========================================="

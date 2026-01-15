@@ -5,10 +5,17 @@
 set -e  # Exit on error
 
 # Configuration
-AUDIO_PATH="/data/mino/AISHELL-1/data_aishell/wav/test/testset/BAC009S0764W0175.wav"
-REFERENCE_FILE="/data/mino/AISHELL-1/data_aishell/transcript/reference.json"
-MODEL_PATH="large-v2.pt"
-OUTPUT_DIR="./example_output"
+AUDIO_PATH="${AUDIO_PATH:-/data/mino/AISHELL-1/data_aishell/wav/train/S0601/BAC009S0601W0468.wav}"
+REFERENCE_FILE="${REFERENCE_FILE:-/data/mino/AISHELL-1/data_aishell/transcript/reference.json}"
+MODEL_PATH="${MODEL_PATH:-large-v2.pt}"
+OUTPUT_DIR="${OUTPUT_DIR:-./example_output}"
+# Make output dir unique per audio (safe for parallel runs)
+OUTPUT_DIR="${OUTPUT_DIR%/}/$(basename "${AUDIO_PATH%.*}")"
+
+VAC_CHUNK_SIZE="${VAC_CHUNK_SIZE:-0.5}"
+BEAM_SIZE="${BEAM_SIZE:-4}"
+
+export AUDIO_PATH
 
 echo "=========================================="
 echo "SimulStreaming Integrated Workflow Example"
@@ -20,16 +27,18 @@ echo "Running single file transcription with automatic evaluation..."
 echo "  Audio path: $AUDIO_PATH"
 echo "  Reference file: $REFERENCE_FILE"
 echo "  Output directory: $OUTPUT_DIR"
+echo "  VAC chunk size: $VAC_CHUNK_SIZE seconds"
+echo "  Beam size: $BEAM_SIZE"
 echo ""
 
 python simulstreaming_whisper.py "$AUDIO_PATH" \
     --model_path "$MODEL_PATH" \
     --logdir "$OUTPUT_DIR" \
     --vac \
-    --vac-chunk-size 0.5 \
+    --vac-chunk-size "$VAC_CHUNK_SIZE" \
     --min-chunk-size 0.01 \
     --lan "zh" \
-    --beams 4 \
+    --beams "$BEAM_SIZE" \
     --frame_threshold 20 \
     --reference-file "$REFERENCE_FILE" \
     --log-level DEBUG \

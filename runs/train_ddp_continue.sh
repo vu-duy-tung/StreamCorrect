@@ -10,7 +10,7 @@ set -e
 # Configuration
 NUM_GPUS=8
 CONFIG_FILE="error_corrector/training/configs/training_configs.yaml"
-CHECKPOINT_PATH="runs/exp--2025-12-29--19-04-25/checkpoint-688"
+CHECKPOINT_PATH="runs/exp--2026-01-05--08-21-17/checkpoint-984"
 
 # Set environment variables
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
@@ -22,7 +22,7 @@ echo "=============================================="
 echo "Number of GPUs: ${NUM_GPUS}"
 echo "Config file: ${CONFIG_FILE}"
 echo "Checkpoint: ${CHECKPOINT_PATH}"
-echo "Additional epochs: 7"
+echo "Additional epochs: 8"
 echo "=============================================="
 
 # Run training with torchrun (PyTorch's distributed launcher)
