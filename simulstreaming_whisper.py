@@ -1,6 +1,5 @@
 from whisper_streaming.base import OnlineProcessorInterface, ASRBase
 import argparse
-
 import sys
 import logging
 import torch
@@ -10,43 +9,107 @@ from simul_whisper import create_whisper_model
 
 logger = logging.getLogger(__name__)
 
+
 def simulwhisper_args(parser):
     group = parser.add_argument_group('Whisper arguments')
-    group.add_argument('--model_path', type=str, default='./large-v3.pt', 
-                        help='The file path to the Whisper .pt model. If not present on the filesystem, the model is downloaded automatically.')
-    group.add_argument("--beams","-b", type=int, default=1, help="Number of beams for beam search decoding. If 1, GreedyDecoder is used.")
-    group.add_argument("--decoder",type=str, default=None, help="Override automatic selection of beam or greedy decoder. "
-                        "If beams > 1 and greedy: invalid.")
+    group.add_argument(
+        '--model_path',
+        type=str,
+        default='./large-v3.pt',
+        help=(
+            'The file path to the Whisper .pt model. If not present on the filesystem, '
+            'the model is downloaded automatically.'
+        )
+    )
+    group.add_argument(
+        "--beams",
+        "-b",
+        type=int,
+        default=1,
+        help="Number of beams for beam search decoding. If 1, GreedyDecoder is used."
+    )
+    group.add_argument(
+        "--decoder",
+        type=str,
+        default=None,
+        help=(
+            "Override automatic selection of beam or greedy decoder. "
+            "If beams > 1 and greedy: invalid."
+        )
+    )
 
     group = parser.add_argument_group('Audio buffer')
-    group.add_argument('--audio_max_len', type=float, default=30.0, 
-                        help='Max length of the audio buffer, in seconds.')
-    group.add_argument('--audio_min_len', type=float, default=0.0, 
-                        help='Skip processing if the audio buffer is shorter than this length, in seconds. Useful when the --min-chunk-size is small.')
-
+    group.add_argument(
+        '--audio_max_len',
+        type=float,
+        default=30.0,
+        help='Max length of the audio buffer, in seconds.'
+    )
+    group.add_argument(
+        '--audio_min_len',
+        type=float,
+        default=0.0,
+        help=(
+            'Skip processing if the audio buffer is shorter than this length, in seconds. '
+            'Useful when the --min-chunk-size is small.'
+        )
+    )
 
     group = parser.add_argument_group('AlignAtt argument')
-    group.add_argument('--frame_threshold', type=int, default=25, 
-                        help='Threshold for the attention-guided decoding. The AlignAtt policy will decode only ' \
-                            'until this number of frames from the end of audio. In frames: one frame is 0.02 seconds for large-v3 model. ')
+    group.add_argument(
+        '--frame_threshold',
+        type=int,
+        default=25,
+        help=(
+            'Threshold for the attention-guided decoding. The AlignAtt policy will decode only '
+            'until this number of frames from the end of audio. In frames: one frame is 0.02 seconds for large-v3 model.'
+        )
+    )
 
     group = parser.add_argument_group('Truncation of the last decoded word (from Simul-Whisper)')
-    group.add_argument('--cif_ckpt_path', type=str, default=None, 
-                        help='The file path to the Simul-Whisper\'s CIF model checkpoint that detects whether there is' \
-                        'end of word at the end of the chunk. If not, the last decoded space-separated word is truncated ' \
-                        'because it is often wrong -- transcribing a word in the middle.' \
-                        'The CIF model adapted for the Whisper model version should be used. ' \
-                        'Find the models in https://github.com/backspacetg/simul_whisper/tree/main/cif_models . ' \
-                        'Note that there is no model for large-v3.')
-    group.add_argument("--never_fire", action=argparse.BooleanOptionalAction, default=False, 
-                       help="Override the CIF model. If True, the last word is NEVER truncated, no matter what the CIF model detects. " \
-                       ". If False: if CIF model path is set, the last word is SOMETIMES truncated, depending on the CIF detection. " \
-                        "Otherwise, if the CIF model path is not set, the last word is ALWAYS trimmed.")
+    group.add_argument(
+        '--cif_ckpt_path',
+        type=str,
+        default=None,
+        help=(
+            'The file path to the Simul-Whisper\'s CIF model checkpoint that detects whether there is '
+            'end of word at the end of the chunk. If not, the last decoded space-separated word is truncated '
+            'because it is often wrong -- transcribing a word in the middle. '
+            'The CIF model adapted for the Whisper model version should be used. '
+            'Find the models in https://github.com/backspacetg/simul_whisper/tree/main/cif_models. '
+            'Note that there is no model for large-v3.'
+        )
+    )
+    group.add_argument(
+        "--never_fire",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Override the CIF model. If True, the last word is NEVER truncated, no matter what the CIF model detects. "
+            "If False: if CIF model path is set, the last word is SOMETIMES truncated, depending on the CIF detection. "
+            "Otherwise, if the CIF model path is not set, the last word is ALWAYS trimmed."
+        )
+    )
 
     group = parser.add_argument_group("Prompt and context")
-    group.add_argument("--init_prompt",type=str, default=None, help="Init prompt for the model. It should be in the target language.")
-    group.add_argument("--static_init_prompt",type=str, default=None, help="Do not scroll over this text. It can contain terminology that should be relevant over all document.")
-    group.add_argument("--max_context_tokens",type=int, default=None, help="Max context tokens for the model. Default is 0.")
+    group.add_argument(
+        "--init_prompt",
+        type=str,
+        default=None,
+        help="Init prompt for the model. It should be in the target language."
+    )
+    group.add_argument(
+        "--static_init_prompt",
+        type=str,
+        default=None,
+        help="Do not scroll over this text. It can contain terminology that should be relevant over all document."
+    )
+    group.add_argument(
+        "--max_context_tokens",
+        type=int,
+        default=None,
+        help="Max context tokens for the model. Default is 0."
+    )
 
 
 def simul_asr_factory(args):
@@ -62,13 +125,26 @@ def simul_asr_factory(args):
     else:
         if decoder is None:
             decoder = "greedy"
-        elif decoder not in ("beam","greedy"):
+        elif decoder not in ("beam", "greedy"):
             raise ValueError("Invalid decoder type. Use 'beam' or 'greedy'.")
-        # else: it is greedy or beam, that's ok 
-    
-    a = { v:getattr(args, v) for v in ["model_path", "cif_ckpt_path", "frame_threshold", "audio_min_len", "audio_max_len", "beams", "task",
-                                       "never_fire", 'init_prompt', 'static_init_prompt', 'max_context_tokens', "logdir"
-                                       ]}
+
+    a = {
+        v: getattr(args, v)
+        for v in [
+            "model_path",
+            "cif_ckpt_path",
+            "frame_threshold",
+            "audio_min_len",
+            "audio_max_len",
+            "beams",
+            "task",
+            "never_fire",
+            'init_prompt',
+            'static_init_prompt',
+            'max_context_tokens',
+            "logdir"
+        ]
+    }
     a["language"] = args.lan
     a["segment_length"] = args.min_chunk_size
     a["decoder_type"] = decoder
@@ -81,21 +157,38 @@ def simul_asr_factory(args):
     asr = SimulWhisperASR(**a)
     return asr, SimulWhisperOnline(asr)
 
+
 class SimulWhisperASR(ASRBase):
-    
+
     sep = " "
 
-    def __init__(self, language, model_path, cif_ckpt_path, frame_threshold, audio_max_len, audio_min_len, segment_length, beams, task, 
-                 decoder_type, never_fire, init_prompt, static_init_prompt, max_context_tokens, logdir):
+    def __init__(
+        self,
+        language,
+        model_path,
+        cif_ckpt_path,
+        frame_threshold,
+        audio_max_len,
+        audio_min_len,
+        segment_length,
+        beams,
+        task,
+        decoder_type,
+        never_fire,
+        init_prompt,
+        static_init_prompt,
+        max_context_tokens,
+        logdir
+    ):
         cfg = AlignAttConfig(
-            model_path=model_path, 
+            model_path=model_path,
             segment_length=segment_length,
             frame_threshold=frame_threshold,
             language=language,
-            audio_max_len=audio_max_len, 
+            audio_max_len=audio_max_len,
             audio_min_len=audio_min_len,
             cif_ckpt_path=cif_ckpt_path,
-            decoder_type=decoder_type, #"greedy" if beams==1 else "beam",
+            decoder_type=decoder_type,
             beam_size=beams,
             task=task,
             never_fire=never_fire,
@@ -108,8 +201,10 @@ class SimulWhisperASR(ASRBase):
         self.model = create_whisper_model(cfg)
 
     def transcribe(self, audio, init_prompt=""):
-        logger.info("SimulWhisperASR's transcribe() should not be used. It's here only temporarily." \
-        "Instead, use SimulWhisperOnline.process_iter().")
+        logger.info(
+            "SimulWhisperASR's transcribe() should not be used. It's here only temporarily. "
+            "Instead, use SimulWhisperOnline.process_iter()."
+        )
         raise NotImplementedError("Use SimulWhisperOnline.process_iter() instead of transcribe().")
 
     def warmup(self, audio, init_prompt=""):
@@ -118,12 +213,11 @@ class SimulWhisperASR(ASRBase):
         self.model.infer(True)
         self.model.refresh_segment(complete=True)
         self.model.is_warmup = False
-    
+
     def use_vad(self):
-        print("VAD not implemented",file=sys.stderr)
+        print("VAD not implemented", file=sys.stderr)
 
     def set_translate_task(self):
-        # this is not used. Translate task is set another way.
         pass
 
 
@@ -136,10 +230,7 @@ class SimulWhisperOnline(OnlineProcessorInterface):
 
     def init(self, offset=None):
         self.audio_chunks = []
-        if offset is not None:
-            self.offset = offset
-        else:
-            self.offset = 0
+        self.offset = offset if offset is not None else 0
         self.is_last = False
         self.beg = self.offset
         self.end = self.offset
@@ -149,9 +240,7 @@ class SimulWhisperOnline(OnlineProcessorInterface):
         self.last_ts = -1
         self.model.refresh_segment(complete=True)
 
-        self.unicode_buffer = []  # hide incomplete unicode character for the next iteration
-        
-        # First Token Latency tracking (will be populated from model)
+        self.unicode_buffer = []
         self.first_token_latency = None
 
     def insert_audio_chunk(self, audio):
@@ -168,18 +257,15 @@ class SimulWhisperOnline(OnlineProcessorInterface):
             split_words, split_tokens = generation["result"]["split_words"], generation["result"]["split_tokens"]
 
         frames = [p["most_attended_frames"][0] for p in pr]
-        # if frames and self.unicode_buffer != []:
-        #     a = [frames[0]] * len(self.unicode_buffer)
-        #     frames = a + frames
         if len(frames) < len(tokens):
             frames = [frames[0]] * (len(tokens) - len(frames)) + frames
         assert len(frames) >= len(tokens), f"Frames length {len(frames)} is less than tokens length {len(tokens)}."
         tokens = tokens.copy()
         ret = []
-        for sw,st in zip(split_words,split_tokens):
+        for sw, st in zip(split_words, split_tokens):
             b = None
             for stt in st:
-                t,f = tokens.pop(0), frames.pop(0)
+                t, f = tokens.pop(0), frames.pop(0)
                 if t != stt:
                     raise ValueError(f"Token mismatch: {t} != {stt} at frame {f}.")
                 if b is None:
@@ -190,7 +276,7 @@ class SimulWhisperOnline(OnlineProcessorInterface):
                 'end': e * 0.02 + self.audio_bufer_offset,
                 'text': sw,
                 'tokens': st
-                }
+            }
             ret.append(out)
             logger.debug(f"TS-WORD-INFO: {out}")
         return ret
@@ -205,15 +291,21 @@ class SimulWhisperOnline(OnlineProcessorInterface):
         if self.unicode_buffer != []:
             logger.debug(f"Hiding incomplete unicode character: {self.unicode_buffer}")
             tokens = self.unicode_buffer + tokens
-            self.unicode_buffer = []  # clear the buffer after processing
+            self.unicode_buffer = []
         chars, word_tokens = self.model.tokenizer.split_tokens_on_unicode(tokens)
         if len(chars) > 0 and replacement_char in chars[-1]:
-            self.unicode_buffer = word_tokens[-1]  # keep the last incomplete unicode character
+            self.unicode_buffer = word_tokens[-1]
             logger.debug(f"Hiding incomplete unicode character: {word_tokens[-1]}")
-            return [x for sublist in word_tokens[:-1] for x in sublist]  # remove the last token, which is incomplete unicode character
+            return [x for sublist in word_tokens[:-1] for x in sublist]
         return tokens
 
-    def process_iter(self, start_time=None):
+    def process_iter(
+        self,
+        start_time=None,
+        *,
+        corrector_model=None,
+        corrector_processor=None,
+    ):
         if len(self.audio_chunks) == 0:
             audio = None
         else:
@@ -226,20 +318,18 @@ class SimulWhisperOnline(OnlineProcessorInterface):
         self.audio_bufer_offset += self.model.insert_audio(audio)
         if audio is None and not self.frame_delay:
             self.model.refresh_segment(complete=False)
-        
-        # For debugging
-        # print("[PLAY WITH MINO] - Frame delay:", self.frame_delay)
-        # print(f"[PLAY WITH MINO] - Inserted audio chunk of shape: {audio.shape if audio is not None else None}")  # DEBUG
-        # print(f"[PLAY WITH MINO] - Audio buffer offset: {self.audio_bufer_offset}")  # DEBUG
-        # print(f"[PLAY WITH MINO] - Model segments: {[x.shape for x in self.model.segments]}")  # DEBUG
 
-        tokens, generation_progress = self.model.infer(is_last=self.is_last, start_time=start_time)
+        tokens, generation_progress = self.model.infer(
+            is_last=self.is_last,
+            start_time=start_time,
+            corrector_model=corrector_model,
+            corrector_processor=corrector_processor,
+        )
         if 'frame_delay' in generation_progress and generation_progress['frame_delay']:
             self.frame_delay = True
         else:
             self.frame_delay = False
 
-        # Get First Token Latency from generation progress (if it was just calculated)
         if generation_progress and 'first_token_latency' in generation_progress:
             ftl = generation_progress['first_token_latency']
             if ftl is not None and self.first_token_latency is None:
@@ -250,11 +340,10 @@ class SimulWhisperOnline(OnlineProcessorInterface):
         text = self.model.tokenizer.decode(tokens)
         if len(text) == 0:
             return {'first_token_latency': self.first_token_latency}
-        
-        # word-level timestamps
+
         ts_words = self.timestamped_text(tokens, generation_progress)
-        self.beg = min(word['start'] for word in ts_words)  # it should be this
-        self.beg = max(self.beg, self.last_ts + 0.001)  # but let's create the timestamps non-decreasing -- at least last beg + 1
+        self.beg = min(word['start'] for word in ts_words)
+        self.beg = max(self.beg, self.last_ts + 0.001)
         if self.is_last:
             e = self.end
         else:
@@ -263,7 +352,6 @@ class SimulWhisperOnline(OnlineProcessorInterface):
 
         self.last_ts = e
 
-        # return (self.beg,e,text)
         return {
             'start': self.beg,
             'end': e,
@@ -273,15 +361,25 @@ class SimulWhisperOnline(OnlineProcessorInterface):
             'first_token_latency': self.first_token_latency
         }
 
-    def finish(self, start_time=None):
+    def finish(
+        self,
+        start_time=None,
+        *,
+        corrector_model=None,
+        corrector_processor=None,
+    ):
         logger.info("Finish")
         self.is_last = True
-        o = self.process_iter(start_time=start_time)
+        o = self.process_iter(
+            start_time=start_time,
+            corrector_model=corrector_model,
+            corrector_processor=corrector_processor,
+        )
         self.is_last = False
-        self.init()  # reset for next use
+        self.init()
         self.model.refresh_segment(complete=True)
         return o
-    
+
 
 if __name__ == "__main__":
 
