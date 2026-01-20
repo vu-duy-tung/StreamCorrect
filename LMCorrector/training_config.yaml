@@ -1,0 +1,125 @@
+# LMCorrector Training Configuration
+# Text-only error correction using Llama 3.2 1B with LoRA
+# For multi-GPU training: torchrun --nproc_per_node=4 training.py --config training_config.yaml
+
+# Model Configuration
+model_id: "meta-llama/Llama-3.2-1B"  # Text-only LLM
+
+# LoRA Configuration
+# Applied to Llama language model layers
+lora_r: 16                # LoRA rank (higher = more capacity, more memory)
+lora_alpha: 32            # LoRA alpha (scaling factor, typically 2x lora_r)
+lora_dropout: 0.05        # Dropout for LoRA layers
+
+# Target modules for LoRA in Llama
+lora_target_modules:
+  - "q_proj"    # Query projection
+  - "k_proj"    # Key projection
+  - "v_proj"    # Value projection
+  - "o_proj"    # Output projection
+  - "gate_proj" # Gate projection (for MLP)
+  - "up_proj"   # Up projection (for MLP)
+  - "down_proj" # Down projection (for MLP)
+
+# Training Configuration
+output_dir: "./LMCorrector/ckpts/llama_lora_finetuned_2"
+num_train_epochs: 4
+per_device_train_batch_size: 8
+per_device_eval_batch_size: 8
+gradient_accumulation_steps: 12
+learning_rate: 1.0e-4
+weight_decay: 0.05
+warmup_ratio: 0.02
+logging_steps: 15
+save_steps: 100
+eval_steps: 100
+# NOTE: bf16 causes SIGFPE with Llama-3.2-1B + DDP on some systems
+# Use fp32 for multi-GPU training stability
+fp16: false
+bf16: false
+gradient_checkpointing: true
+max_grad_norm: 1.0
+
+# Learning rate scheduler
+lr_scheduler_type: "cosine"  # Options: linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
+warmup_steps: 0              # If > 0, overrides warmup_ratio
+
+# Text processing
+max_text_length: 512         # Maximum sequence length
+
+# Data Configuration
+# Training data should be in JSONL format with fields:
+#   - k_best_candidates: list of ASR transcription candidates
+#   - previous_transcript: confirmed previous transcript (for context)
+#   - continuation_transcript: ground truth for the continuation
+#
+# Alternative format for generic fine-tuning:
+#   - instruction: the input prompt
+#   - response: the expected output
+train_data_path: "/home/duy/PlayWithMino/SimulStreaming/SpeechLMCorrector/data/sample_custom_data/samples_train_current.jsonl"  # Path to training data (JSONL or JSON)
+eval_data_path: null   # Path to evaluation data (optional)
+
+# Train/Validation split (if eval_data_path is not provided)
+train_val_split: 0.1   # 10% of data for validation (set to 0 to disable)
+shuffle_data: true     # Shuffle data before splitting
+
+# Distributed Training (DDP) Configuration
+ddp_find_unused_parameters: false
+ddp_backend: "nccl"
+local_rank: -1
+dataloader_num_workers: 4
+dataloader_pin_memory: true
+
+# WandB Configuration
+report_to:
+  - "tensorboard"
+  # - "wandb"  # Uncomment to enable WandB logging
+wandb_project: "llama-lora-finetune"
+wandb_run_name: null   # Auto-generated if null
+wandb_tags: []
+
+# Miscellaneous
+seed: 42
+resume_from_checkpoint: null  # Path to checkpoint for resuming training
+
+# ============================================================================= 
+# Usage Examples:
+# =============================================================================
+# 
+# Single GPU Training:
+#   python training.py --config training_config.yaml
+#
+# Multi-GPU Training (DDP):
+#   torchrun --nproc_per_node=4 training.py --config training_config.yaml
+#
+# Resume from Checkpoint:
+#   python training.py --config training_config.yaml --resume_from_checkpoint ./runs/llama_lora_finetuned/checkpoint-500
+#
+# Load Pre-trained LoRA Adapter:
+#   python training.py --config training_config.yaml --load_adapter ./runs/llama_lora_finetuned
+#
+# Override Config via CLI:
+#   python training.py --config training_config.yaml --train_data data/train.jsonl --output_dir ./output
+#
+# =============================================================================
+# Training Data Format (JSONL):
+# =============================================================================
+#
+# For ASR Error Correction (custom format):
+# {"k_best_candidates": ["candidate 1", "candidate 2", ...], "previous_transcript": "previous text", "continuation_transcript": "correct continuation"}
+#
+# For Generic Fine-tuning:
+# {"instruction": "Your prompt here", "response": "Expected response"}
+#
+# =============================================================================
+# GPU Memory Usage (Approximate for Llama 3.2 1B):
+# =============================================================================
+#
+# Batch Size | Memory (bf16) | Memory (fp32)
+# -----------------------------------------
+#     2      |   ~6 GB       |   ~10 GB
+#     4      |   ~8 GB       |   ~14 GB
+#     8      |   ~12 GB      |   ~22 GB
+#
+# With gradient checkpointing, memory usage is reduced by ~30-40%
+# LoRA significantly reduces memory by only training ~0.5% of parameters
