@@ -99,6 +99,17 @@ def simulwhisper_args(parser):
         help="Enable the SpeechLM error corrector to post-process transcriptions."
     )
     group.add_argument(
+        "--error-corrector-type",
+        type=str,
+        choices=["speechlm", "lm"],
+        default="speechlm",
+        help=(
+            "Type of error corrector to use: "
+            "'speechlm' for Ultravox (audio + text), "
+            "'lm' for Llama (text-only). Default: speechlm"
+        )
+    )
+    group.add_argument(
         "--error-corrector-ckpt",
         type=str,
         default=None,
@@ -110,8 +121,12 @@ def simulwhisper_args(parser):
     group.add_argument(
         "--error-corrector-base-model",
         type=str,
-        default="fixie-ai/ultravox-v0_5-llama-3_2-1b",
-        help="Base model ID for the error corrector."
+        default=None,
+        help=(
+            "Base model ID for the error corrector. "
+            "Default: fixie-ai/ultravox-v0_5-llama-3_2-1b for speechlm, "
+            "meta-llama/Llama-3.2-1B for lm."
+        )
     )
 
     group = parser.add_argument_group("Prompt and context")
@@ -328,6 +343,7 @@ class SimulWhisperOnline(OnlineProcessorInterface):
         *,
         corrector_model=None,
         corrector_processor=None,
+        corrector_type="speechlm",  # "speechlm" or "lm"
     ):
         if len(self.audio_chunks) == 0:
             audio = None
@@ -347,6 +363,7 @@ class SimulWhisperOnline(OnlineProcessorInterface):
             start_time=start_time,
             corrector_model=corrector_model,
             corrector_processor=corrector_processor,
+            corrector_type=corrector_type,
         )
         if 'frame_delay' in generation_progress and generation_progress['frame_delay']:
             self.frame_delay = True
@@ -390,6 +407,7 @@ class SimulWhisperOnline(OnlineProcessorInterface):
         *,
         corrector_model=None,
         corrector_processor=None,
+        corrector_type="speechlm",  # "speechlm" or "lm"
     ):
         logger.info("Finish")
         self.is_last = True
@@ -397,6 +415,7 @@ class SimulWhisperOnline(OnlineProcessorInterface):
             start_time=start_time,
             corrector_model=corrector_model,
             corrector_processor=corrector_processor,
+            corrector_type=corrector_type,
         )
         self.is_last = False
         self.init()

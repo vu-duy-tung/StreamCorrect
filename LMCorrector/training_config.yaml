@@ -3,11 +3,11 @@
 # For multi-GPU training: torchrun --nproc_per_node=4 training.py --config training_config.yaml
 
 # Model Configuration
-model_id: "meta-llama/Llama-3.2-1B"  # Text-only LLM
+model_id: "meta-llama/Llama-3.1-8B"  # Text-only LLM
 
 # LoRA Configuration
 # Applied to Llama language model layers
-lora_r: 16                # LoRA rank (higher = more capacity, more memory)
+lora_r: 16               # LoRA rank (higher = more capacity, more memory)
 lora_alpha: 32            # LoRA alpha (scaling factor, typically 2x lora_r)
 lora_dropout: 0.05        # Dropout for LoRA layers
 
@@ -22,8 +22,8 @@ lora_target_modules:
   - "down_proj" # Down projection (for MLP)
 
 # Training Configuration
-output_dir: "./LMCorrector/ckpts/llama_lora_finetuned_2"
-num_train_epochs: 4
+output_dir: "llama8b_lora_finetuned_1"
+num_train_epochs: 10
 per_device_train_batch_size: 8
 per_device_eval_batch_size: 8
 gradient_accumulation_steps: 12
@@ -31,8 +31,8 @@ learning_rate: 1.0e-4
 weight_decay: 0.05
 warmup_ratio: 0.02
 logging_steps: 15
-save_steps: 100
-eval_steps: 100
+save_steps: 200
+eval_steps: 200
 # NOTE: bf16 causes SIGFPE with Llama-3.2-1B + DDP on some systems
 # Use fp32 for multi-GPU training stability
 fp16: false
@@ -56,7 +56,7 @@ max_text_length: 512         # Maximum sequence length
 # Alternative format for generic fine-tuning:
 #   - instruction: the input prompt
 #   - response: the expected output
-train_data_path: "/home/duy/PlayWithMino/SimulStreaming/SpeechLMCorrector/data/sample_custom_data/samples_train_current.jsonl"  # Path to training data (JSONL or JSON)
+train_data_path: "/home/duy/PlayWithMino/SimulStreaming/SpeechLMCorrector/data/sample_custom_data/samples_testset_filtered.jsonl"  # Path to training data (JSONL or JSON)
 eval_data_path: null   # Path to evaluation data (optional)
 
 # Train/Validation split (if eval_data_path is not provided)

@@ -40,6 +40,17 @@ echo "=== Ultravox LoRA Training ==="
 echo "GPUs: $NUM_GPUS | Config: $CONFIG"
 
 if [ "$NUM_GPUS" -gt 1 ]; then
+    # Find an available port
+    while netstat -tuln 2>/dev/null | grep -q ":${PORT} " || ss -tuln 2>/dev/null | grep -q ":${PORT} "; do
+        PORT=$((PORT + 1))
+    done
+    echo "Using port: $PORT"
+    
+    # NCCL workaround for H20 GPUs: disable P2P and SHM to avoid CUDA IPC issues
+    # This forces NCCL to use socket-based communication instead
+    export NCCL_P2P_DISABLE=1
+    export NCCL_SHM_DISABLE=1
+    
     torchrun --nproc_per_node=$NUM_GPUS --master_port=$PORT training.py $ARGS
 else
     python training.py $ARGS

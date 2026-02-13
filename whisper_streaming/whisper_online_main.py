@@ -121,6 +121,7 @@ def asr_factory(args, factory=None):
             use_error_corrector=getattr(args, 'use_error_corrector', False),
             error_corrector_ckpt=getattr(args, 'error_corrector_ckpt', None),
             error_corrector_base_model=getattr(args, 'error_corrector_base_model', None),
+            error_corrector_type=getattr(args, 'error_corrector_type', 'speechlm'),
         )
 
     if args.task == "translate":

@@ -6,6 +6,9 @@
 # -----------------------------------------------------------------------------
 # Model Configuration
 # -----------------------------------------------------------------------------
+# Options:
+#   - fixie-ai/ultravox-v0_5-llama-3_2-1b  (1B params, ~4GB VRAM)
+#   - fixie-ai/ultravox-v0_5-llama-3_1-8b  (8B params, ~20GB VRAM)
 model_id: "fixie-ai/ultravox-v0_5-llama-3_2-1b"
 
 # -----------------------------------------------------------------------------
@@ -35,8 +38,11 @@ train_audio_encoder: false
 # -----------------------------------------------------------------------------
 # Training Parameters
 # -----------------------------------------------------------------------------
-output_dir: "./ultravox_lora_finetuned"
-num_train_epochs: 2
+output_dir: "./ckpts/wsyue_ultravox_1b_lora_finetuned_6"
+num_train_epochs: 10
+# NOTE: For 8B model, reduce batch size to fit in GPU memory
+# 1B model: batch_size=8 works on 24GB GPU
+# 8B model: batch_size=1-2 recommended on 24GB GPU, increase gradient_accumulation_steps
 per_device_train_batch_size: 8
 per_device_eval_batch_size: 8
 gradient_accumulation_steps: 12
@@ -44,8 +50,8 @@ learning_rate: 1.0e-4
 weight_decay: 0.05
 max_grad_norm: 1.0
 logging_steps: 15
-save_steps: 100
-eval_steps: 100
+save_steps: 400
+eval_steps: 400
 
 # Learning rate scheduler (following Ultravox's approach)
 # Options: linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
@@ -62,9 +68,9 @@ fp16: false
 bf16: false
 
 # Memory optimization
-# Note: gradient_checkpointing may cause issues with some model architectures
-# Disable if you encounter gradient computation errors
-gradient_checkpointing: false
+# Note: gradient_checkpointing is HIGHLY RECOMMENDED for 8B model to reduce memory
+# It trades compute for memory by recomputing activations during backward pass
+gradient_checkpointing: true
 
 # -----------------------------------------------------------------------------
 # WandB Logging Configuration
@@ -76,7 +82,7 @@ report_to:
   - "tensorboard"
 
 # WandB project name
-wandb_project: "ultravox-lora-finetune"
+wandb_project: "ultravox-1b-lora-finetune"
 
 # WandB run name (optional, will be auto-generated if null)
 wandb_run_name: null
@@ -84,6 +90,7 @@ wandb_run_name: null
 # WandB tags for organizing runs
 wandb_tags:
   - "ultravox"
+  - "llama-3.2-1b"
   - "lora"
   - "asr-error-correction"
 
@@ -107,7 +114,7 @@ wandb_tags:
 #    }
 #    The audio is automatically cut from 0s to 'timestamp' seconds.
 #
-train_data_path: "/home/duy/PlayWithMino/SimulStreaming/error_corrector/data/sample_custom_data/samples_new.jsonl"
+train_data_path: "/home/duy/PlayWithMino/SimulStreaming/SpeechLMCorrector/data/sample_custom_data/wsyue_cnt_500.jsonl"
 eval_data_path: null   # Set to your evaluation data path (optional)
 
 # Train/validation split settings

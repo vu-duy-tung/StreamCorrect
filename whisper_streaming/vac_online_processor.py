@@ -34,6 +34,7 @@ class VACOnlineASRProcessor(OnlineProcessorInterface):
         use_error_corrector=False,
         error_corrector_ckpt=None,
         error_corrector_base_model=None,
+        error_corrector_type="speechlm",  # "speechlm" or "lm"
     ):
         self.online_chunk_size = online_chunk_size
         self.online = online
@@ -51,40 +52,82 @@ class VACOnlineASRProcessor(OnlineProcessorInterface):
         # Error corrector initialization
         self._corrector_model = None
         self._corrector_processor = None
+        self._corrector_type = error_corrector_type  # "speechlm" or "lm"
 
         if use_error_corrector:
-            base_model_id = error_corrector_base_model or "fixie-ai/ultravox-v0_5-llama-3_2-1b"
-            if error_corrector_ckpt:
-                checkpoint_path = error_corrector_ckpt
-            else:
-                checkpoint_path = os.path.join(
-                    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                    "SpeechLMCorrector/ultravox_lora_continued_more_erroneous_5/checkpoint-2895"
+            if error_corrector_type == "lm":
+                # LM corrector (text-only, Llama with LoRA)
+                from transformers import AutoModelForCausalLM
+                
+                base_model_id = error_corrector_base_model or "meta-llama/Llama-3.2-1B"
+                if error_corrector_ckpt:
+                    checkpoint_path = error_corrector_ckpt
+                else:
+                    checkpoint_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "LMCorrector/runs/llama_lora_finetuned"
+                    )
+                logger.info(f"Loading LM corrector from {checkpoint_path}")
+                
+                # Load tokenizer
+                self._corrector_processor = AutoTokenizer.from_pretrained(
+                    base_model_id,
+                    trust_remote_code=True
                 )
-            logger.info(f"Loading SpeechLM corrector from {checkpoint_path}")
+                if self._corrector_processor.pad_token is None:
+                    self._corrector_processor.pad_token = self._corrector_processor.eos_token
+                    self._corrector_processor.pad_token_id = self._corrector_processor.eos_token_id
+                
+                # Load base model
+                base_model = AutoModelForCausalLM.from_pretrained(
+                    base_model_id,
+                    torch_dtype=torch.float32,
+                    trust_remote_code=True,
+                    device_map="cuda",
+                )
+                
+                # Load LoRA adapter
+                self._corrector_model = PeftModel.from_pretrained(
+                    base_model,
+                    checkpoint_path,
+                    is_trainable=False,
+                )
+                self._corrector_model.eval()
+                logger.info("LM corrector loaded successfully")
+            else:
+                # SpeechLM corrector (audio + text, Ultravox with LoRA)
+                base_model_id = error_corrector_base_model or "fixie-ai/ultravox-v0_5-llama-3_2-1b"
+                if error_corrector_ckpt:
+                    checkpoint_path = error_corrector_ckpt
+                else:
+                    checkpoint_path = os.path.join(
+                        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "SpeechLMCorrector/ultravox_lora_continued_more_erroneous_5/checkpoint-2895"
+                    )
+                logger.info(f"Loading SpeechLM corrector from {checkpoint_path}")
 
-            # Load processor
-            self._corrector_processor = AutoProcessor.from_pretrained(
-                base_model_id,
-                trust_remote_code=True
-            )
+                # Load processor
+                self._corrector_processor = AutoProcessor.from_pretrained(
+                    base_model_id,
+                    trust_remote_code=True
+                )
 
-            # Load base model
-            base_model = AutoModel.from_pretrained(
-                base_model_id,
-                torch_dtype=torch.float32,
-                trust_remote_code=True,
-                device_map="cuda",
-            )
+                # Load base model
+                base_model = AutoModel.from_pretrained(
+                    base_model_id,
+                    torch_dtype=torch.float32,
+                    trust_remote_code=True,
+                    device_map="cuda",
+                )
 
-            # Load LoRA adapter
-            self._corrector_model = PeftModel.from_pretrained(
-                base_model,
-                checkpoint_path,
-                is_trainable=False,
-            )
-            self._corrector_model.eval()
-            logger.info("SpeechLM corrector loaded successfully")
+                # Load LoRA adapter
+                self._corrector_model = PeftModel.from_pretrained(
+                    base_model,
+                    checkpoint_path,
+                    is_trainable=False,
+                )
+                self._corrector_model.eval()
+                logger.info("SpeechLM corrector loaded successfully")
         else:
             logger.info("Error corrector disabled")
 
@@ -169,6 +212,7 @@ class VACOnlineASRProcessor(OnlineProcessorInterface):
                 start_time=start_time,
                 corrector_model=self._corrector_model,
                 corrector_processor=self._corrector_processor,
+                corrector_type=self._corrector_type,
             )
             return ret
         else:
@@ -180,6 +224,7 @@ class VACOnlineASRProcessor(OnlineProcessorInterface):
             start_time=start_time,
             corrector_model=self._corrector_model,
             corrector_processor=self._corrector_processor,
+            corrector_type=self._corrector_type,
         )
         self.init()
         return ret

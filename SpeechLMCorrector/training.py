@@ -2,8 +2,12 @@
 Fine-tuning script for Ultravox model using LoRA.
 This script uses only HuggingFace libraries (transformers, peft, datasets).
 
-Model: fixie-ai/ultravox-v0_5-llama-3_2-1b
-- Language Model: Llama 3.2 1B
+Supported Models:
+- fixie-ai/ultravox-v0_5-llama-3_2-1b (Llama 3.2 1B, ~4GB VRAM)
+- fixie-ai/ultravox-v0_5-llama-3_1-8b (Llama 3.1 8B, ~20GB VRAM)
+
+Architecture:
+- Language Model: Llama 3.2 1B or Llama 3.1 8B
 - Audio Encoder: Whisper (frozen by default)
 - Multi-modal Projector: Linear layers adapting speech to text space
 
@@ -816,17 +820,17 @@ def load_model_from_checkpoint(checkpoint_path: str, config: UltravoxLoraConfig)
                 param.requires_grad = config.train_projector
             log_info(f"Projector trainable: {config.train_projector}")
         
-        # Enable gradient checkpointing
-        if config.gradient_checkpointing:
-            base_model.gradient_checkpointing_enable()
-        
-        # Load LoRA adapter
+        # Load LoRA adapter FIRST
         log_info("Loading LoRA adapter weights...")
         model = PeftModel.from_pretrained(
             base_model,
             checkpoint_path,
             is_trainable=True,  # Important: keep adapter trainable for continued training
         )
+        
+        # NOTE: Gradient checkpointing is enabled by Trainer via TrainingArguments
+        # with gradient_checkpointing_kwargs={"use_reentrant": False} for LoRA compatibility
+        # Do NOT enable it here to avoid double-enabling issues
         
         model.print_trainable_parameters()
         
@@ -890,12 +894,12 @@ def setup_model_for_lora_training_base(config: UltravoxLoraConfig):
     
     log_info("Applying LoRA to language model...")
     
-    # Enable gradient checkpointing
-    if config.gradient_checkpointing:
-        model.gradient_checkpointing_enable()
-    
-    # Apply LoRA
+    # Apply LoRA FIRST
     model = get_peft_model(model, lora_config)
+    
+    # NOTE: Gradient checkpointing is enabled by Trainer via TrainingArguments
+    # with gradient_checkpointing_kwargs={"use_reentrant": False} for LoRA compatibility
+    # Do NOT enable it here to avoid double-enabling issues
     
     model.print_trainable_parameters()
     
@@ -980,7 +984,9 @@ def train(
         eval_steps=config.eval_steps if eval_dataset is not None else None,
         fp16=config.fp16,
         bf16=config.bf16,
+        # Gradient checkpointing settings - use_reentrant=False is required for LoRA compatibility
         gradient_checkpointing=config.gradient_checkpointing,
+        gradient_checkpointing_kwargs={"use_reentrant": False} if config.gradient_checkpointing else None,
         remove_unused_columns=False,
         report_to=config.report_to,
         run_name=config.wandb_run_name,
