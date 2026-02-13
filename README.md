@@ -8,6 +8,8 @@ StreamCorrect addresses the challenges of streaming ASR, where error propagation
 
 ## Demo
 
+<video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0916W0424_100.mp4" controls></video>
+
 ### Sample 1 — BAC009S0916W0424
 
 | | 100ms | 500ms | 1000ms |
