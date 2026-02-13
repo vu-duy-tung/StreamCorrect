@@ -10,91 +10,17 @@ StreamCorrect addresses the challenges of streaming ASR, where error propagation
 
 ### Sample 1 — BAC009S0916W0424
 
-<table>
-<tr>
-<td align="center"><b>100ms</b></td>
-<td align="center"><b>500ms</b></td>
-<td align="center"><b>1000ms</b></td>
-</tr>
-<tr>
-<td align="center">
-
-https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0916W0424_100.mp4
-
-</td>
-<td align="center">
-
-https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0916W0424_500.mp4
-
-</td>
-<td align="center">
-
-https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0916W0424_1000.mp4
-
-</td>
-</tr>
-<tr>
-<td align="center">
-
-https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0916W0424_100.mp4
-
-</td>
-<td align="center">
-
-https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0916W0424_500.mp4
-
-</td>
-<td align="center">
-
-https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0916W0424_1000.mp4
-
-</td>
-</tr>
-</table>
+| | 100ms | 500ms | 1000ms |
+|:---:|:-----:|:-----:|:------:|
+| **StreamCorrect** | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0916W0424_100.mp4" width="250"></video> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0916W0424_500.mp4" width="250"></video> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0916W0424_1000.mp4" width="250"></video> |
+| **Without EC** | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0916W0424_100.mp4" width="250"></video> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0916W0424_500.mp4" width="250"></video> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0916W0424_1000.mp4" width="250"></video> |
 
 ### Sample 2 — BAC009S0768W0452
 
-<table>
-<tr>
-<td align="center"><b>100ms</b></td>
-<td align="center"><b>500ms</b></td>
-<td align="center"><b>1000ms</b></td>
-</tr>
-<tr>
-<td align="center">
-
-https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0768W0452_100.mp4
-
-</td>
-<td align="center">
-
-https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0768W0452_500.mp4
-
-</td>
-<td align="center">
-
-https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0768W0452_1000.mp4
-
-</td>
-</tr>
-<tr>
-<td align="center">
-
-https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0768W0452_100.mp4
-
-</td>
-<td align="center">
-
-https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0768W0452_500.mp4
-
-</td>
-<td align="center">
-
-https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0768W0452_1000.mp4
-
-</td>
-</tr>
-</table>
+| | 100ms | 500ms | 1000ms |
+|:---:|:-----:|:-----:|:------:|
+| **StreamCorrect** | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0768W0452_100.mp4" width="250"></video> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0768W0452_500.mp4" width="250"></video> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0768W0452_1000.mp4" width="250"></video> |
+| **Without EC** | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0768W0452_100.mp4" width="250"></video> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0768W0452_500.mp4" width="250"></video> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0768W0452_1000.mp4" width="250"></video> |
 
 ## Preparation
 ### Install packages
