@@ -1,5 +1,8 @@
 <div align="center">
   <h1 style="margin-bottom:0.4em">StreamCorrect: Bringing Offline ASR Performance to Streaming via Error Correction</h1>
+  
+  [![GitHub](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com) [![arXiv](https://img.shields.io/badge/📝-Paper-red)]()
+  
   <img src="assets/streamcorrect_overview.png" alt="StreamCorrect overview" width="300" />
 </div>
 
@@ -25,7 +28,7 @@ pip install -r requirements.txt
 Offline ASR models and Error Correction model could be downloaded [here](https://drive.google.com/drive/folders/1h2tOl6gs93SYZo7fTsc1JYmsOyyRZFLf?usp=sharing)
 
 ### Data preparation
-Download WSYue-ASR-eval for testing:
+<!-- Download WSYue-ASR-eval for testing:
 ```bash
 git clone https://huggingface.co/datasets/ASLP-lab/WSYue-ASR-eval 
 tar -xzf WSYue-ASR-eval/Short/wav.tar.gz
@@ -36,26 +39,31 @@ python wsyue_asr_eval.py \
         --input ./WSYue-ASR-eval/Short/content.txt \
         --output ./WSYue-ASR-eval/Short/content.json \
         --audio-dir ./WSYue-ASR-eval/Short/wav_ \
-```
+``` -->
 
-### Install model checkpoint
+<!-- ### Install model checkpoint
 Download `whisper-medium-yue` checkpoint:
 ```bash
 git clone https://huggingface.co/ASLP-lab/WSYue-ASR
 mv WSYue-ASR/whisper_medium_yue/whisper_medium_yue.pt ./
 rm -rf WSYue-ASR
-```
+``` -->
 
 ## Inference
 
-- Inference of SimulStreaming with Error Corrector on a single `.wav` file
+- Inference of StreamCorrect on a single `.wav` file
 ```bash
 bash runs/run_single_eval_aishell.sh
 ```
 
-- Inference of SimulStreaming with Error Corrector on a folder of `.wav` files
+- Inference without error corrector
 ```bash
-bash runs/run_batch_eval_aishell.sh
+USE_ERROR_CORRECTOR=false AUDIO_PATH=sample_audio.wav bash runs/run_single_eval_wsyue.sh
+```
+
+- Inference of StreamCorrect on a folder of `.wav` files
+```bash
+AUDIO_DIR=sample_directory_of_wavs bash runs/run_batch_eval_aishell.sh
 ```
 
 - Output file will be saved to `save_dir/streaming_medium-yue_wsyue_results/evaluation_results.json` with format similar to the follows:
@@ -90,6 +98,11 @@ bash runs/run_batch_eval_aishell.sh
   ],
   "average_first_token_latency_ms": 1731.2631171236756
 }
+```
+
+## Error Corrector Fine-tuning
+```bash
+bash SpeechLMCorrector/train.sh --gpus 4
 ```
 
 ## Acknownledgement
