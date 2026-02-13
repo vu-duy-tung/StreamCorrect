@@ -10,31 +10,26 @@ StreamCorrect addresses the challenges of streaming ASR, where error propagation
 
 <table align="center">
   <tr>
-    <th></th>
     <th align="center">100ms</th>
     <th align="center">500ms</th>
     <th align="center">1000ms</th>
   </tr>
   <tr>
-    <td><b>With StreamCorrect</b></td>
     <td><video src="assets/StreamCor_BAC009S0916W0424_100.mp4" controls width="250"></video></td>
     <td><video src="assets/StreamCor_BAC009S0916W0424_500.mp4" controls width="250"></video></td>
     <td><video src="assets/StreamCor_BAC009S0916W0424_1000.mp4" controls width="250"></video></td>
   </tr>
   <tr>
-    <td><b>Without StreamCorrect</b></td>
     <td><video src="assets/WO_BAC009S0916W0424_100.mp4" controls width="250"></video></td>
     <td><video src="assets/WO_BAC009S0916W0424_500.mp4" controls width="250"></video></td>
     <td><video src="assets/WO_BAC009S0916W0424_1000.mp4" controls width="250"></video></td>
   </tr>
   <tr>
-    <td><b>With StreamCorrect</b></td>
     <td><video src="assets/StreamCor_BAC009S0768W0452_100.mp4" controls width="250"></video></td>
     <td><video src="assets/StreamCor_BAC009S0768W0452_500.mp4" controls width="250"></video></td>
     <td><video src="assets/StreamCor_BAC009S0768W0452_1000.mp4" controls width="250"></video></td>
   </tr>
   <tr>
-    <td><b>Without StreamCorrect</b></td>
     <td><video src="assets/WO_BAC009S0768W0452_100.mp4" controls width="250"></video></td>
     <td><video src="assets/WO_BAC009S0768W0452_500.mp4" controls width="250"></video></td>
     <td><video src="assets/WO_BAC009S0768W0452_1000.mp4" controls width="250"></video></td>
