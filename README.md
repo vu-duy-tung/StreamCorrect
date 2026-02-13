@@ -1,6 +1,6 @@
 <div align="center">
   <h1 style="margin-bottom:0.4em">StreamCorrect: Bringing Offline ASR Performance to Streaming via Error Correction</h1>
-  <img src="assets/streamcorrect_overview.png" alt="StreamCorrect overview" style="max-width:20%; height:auto; margin-top:0.2em;" />
+  <img src="assets/streamcorrect_overview.png" alt="StreamCorrect overview" width="300" />
 </div>
 
 ## About StreamCorrect
@@ -8,33 +8,12 @@ StreamCorrect addresses the challenges of streaming ASR, where error propagation
 
 ## Demo
 
-<table align="center">
-  <tr>
-    <th align="center">100ms</th>
-    <th align="center">500ms</th>
-    <th align="center">1000ms</th>
-  </tr>
-  <tr>
-    <td><video src="assets/StreamCor_BAC009S0916W0424_100.mp4" controls width="250"></video></td>
-    <td><video src="assets/StreamCor_BAC009S0916W0424_500.mp4" controls width="250"></video></td>
-    <td><video src="assets/StreamCor_BAC009S0916W0424_1000.mp4" controls width="250"></video></td>
-  </tr>
-  <tr>
-    <td><video src="assets/WO_BAC009S0916W0424_100.mp4" controls width="250"></video></td>
-    <td><video src="assets/WO_BAC009S0916W0424_500.mp4" controls width="250"></video></td>
-    <td><video src="assets/WO_BAC009S0916W0424_1000.mp4" controls width="250"></video></td>
-  </tr>
-  <tr>
-    <td><video src="assets/StreamCor_BAC009S0768W0452_100.mp4" controls width="250"></video></td>
-    <td><video src="assets/StreamCor_BAC009S0768W0452_500.mp4" controls width="250"></video></td>
-    <td><video src="assets/StreamCor_BAC009S0768W0452_1000.mp4" controls width="250"></video></td>
-  </tr>
-  <tr>
-    <td><video src="assets/WO_BAC009S0768W0452_100.mp4" controls width="250"></video></td>
-    <td><video src="assets/WO_BAC009S0768W0452_500.mp4" controls width="250"></video></td>
-    <td><video src="assets/WO_BAC009S0768W0452_1000.mp4" controls width="250"></video></td>
-  </tr>
-</table>
+| 100ms | 500ms | 1000ms |
+|:-----:|:-----:|:------:|
+| <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0916W0424_100.mp4" width="250"> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0916W0424_500.mp4" width="250"> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0916W0424_1000.mp4" width="250"> |
+| <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0916W0424_100.mp4" width="250"> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0916W0424_500.mp4" width="250"> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0916W0424_1000.mp4" width="250"> |
+| <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0768W0452_100.mp4" width="250"> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0768W0452_500.mp4" width="250"> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/StreamCor_BAC009S0768W0452_1000.mp4" width="250"> |
+| <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0768W0452_100.mp4" width="250"> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0768W0452_500.mp4" width="250"> | <video src="https://github.com/vu-duy-tung/real-time-transcription/raw/error-correction/assets/WO_BAC009S0768W0452_1000.mp4" width="250"> |
 
 ## Preparation
 ### Install packages
