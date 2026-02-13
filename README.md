@@ -1,28 +1,53 @@
-# StreamCorrect: Bringing Offline ASR Performance to Streaming via Error Correction
+<div align="center">
+  <h1 style="margin-bottom:0.4em">StreamCorrect: Bringing Offline ASR Performance to Streaming via Error Correction</h1>
+  <img src="assets/streamcorrect_overview.png" alt="StreamCorrect overview" style="max-width:40%; height:auto; margin-top:0.2em;" />
+</div>
 
-#### StreamCorrect
-StreamCorrect is an error correction model for streaming ASR that learns to map erroneous partial hypotheses produced by streaming ASR systems to corrected transcripts. It fine-tunes a Speech Language Model to leverage its strong language modeling capability for post-editing high-quality offline ASR outputs in real time. StreamCorrect is integrated with SimulStreaming to refine incremental ASR predictions under strict latency constraints.
+## About StreamCorrect
+StreamCorrect addresses the challenges of streaming ASR, where error propagation and limited context often degrade performance compared to offline models. It introduces a lightweight error corrector fine-tuned on self-generated data to mitigate accumulated errors in real-time. This approach bridges the gap between offline ASR quality and streaming requirements, preserving pretrained model performance without requiring distillation into streaming-style architectures.
 
-#### About SimulStreaming backbone
-SimulStreaming implements Whisper model for translation and transcription in
-simultaneous mode (which is known as *streaming* in the ASR community).
-SimulStreaming uses the state-of-the-art simultaneous policy AlignAtt, which
-makes it very fast and efficient.
+## Demo
 
-SimulStreaming merges [Simul-Whisper](https://github.com/backspacetg/simul_whisper/) and [Whisper-Streaming](https://github.com/ufal/whisper_streaming) projects.
-
-SimulStreaming originates as [Charles University (CUNI) submission to the IWSLT
-2025 Simultaneous Shared Task](https://arxiv.org/abs/2506.17077). The results show that this system is extremely robust
-and high quality. It is among the top performing systems in IWSLT 2025
-Simultaneous Shared Task.
+<table align="center">
+  <tr>
+    <th></th>
+    <th align="center">100ms</th>
+    <th align="center">500ms</th>
+    <th align="center">1000ms</th>
+  </tr>
+  <tr>
+    <td><b>With StreamCorrect</b></td>
+    <td><video src="assets/StreamCor_BAC009S0916W0424_100.mp4" controls width="250"></video></td>
+    <td><video src="assets/StreamCor_BAC009S0916W0424_500.mp4" controls width="250"></video></td>
+    <td><video src="assets/StreamCor_BAC009S0916W0424_1000.mp4" controls width="250"></video></td>
+  </tr>
+  <tr>
+    <td><b>Without StreamCorrect</b></td>
+    <td><video src="assets/WO_BAC009S0916W0424_100.mp4" controls width="250"></video></td>
+    <td><video src="assets/WO_BAC009S0916W0424_500.mp4" controls width="250"></video></td>
+    <td><video src="assets/WO_BAC009S0916W0424_1000.mp4" controls width="250"></video></td>
+  </tr>
+  <tr>
+    <td><b>With StreamCorrect</b></td>
+    <td><video src="assets/StreamCor_BAC009S0768W0452_100.mp4" controls width="250"></video></td>
+    <td><video src="assets/StreamCor_BAC009S0768W0452_500.mp4" controls width="250"></video></td>
+    <td><video src="assets/StreamCor_BAC009S0768W0452_1000.mp4" controls width="250"></video></td>
+  </tr>
+  <tr>
+    <td><b>Without StreamCorrect</b></td>
+    <td><video src="assets/WO_BAC009S0768W0452_100.mp4" controls width="250"></video></td>
+    <td><video src="assets/WO_BAC009S0768W0452_500.mp4" controls width="250"></video></td>
+    <td><video src="assets/WO_BAC009S0768W0452_1000.mp4" controls width="250"></video></td>
+  </tr>
+</table>
 
 ## Preparation
 ### Install packages
 
 ```bash
-conda create -n streamingasr python=3.10
-conda activate streamingasr
-bash install.sh
+conda create -n StreamCorrect python=3.10
+conda activate StreamCorrect
+pip install -r requirements.txt
 ```
 
 ### Model checkpoints
@@ -96,10 +121,24 @@ bash runs/run_batch_eval_aishell.sh
 }
 ```
 
-## To-do
-- [x] Fix a logic bug of the token buffer   
-- [x] Preliminary test SimulStreaming on Mandarin (AIShell-1)
-- [x] Preliminary test SimulStreaming on Cantonese (WSYue)
-- [x] Add `whisper-medium-yue` 
-- [x] Add Last Token Latency
-- [x] Add Error Corrector with Ultravox as backbone
+## Acknownledgement
+This code was adapted and modified from `SimulStreaming` project
+```
+@inproceedings{simulstreaming,
+    title = "Simultaneous Translation with Offline Speech and {LLM} Models in {CUNI} Submission to {IWSLT} 2025",
+    author = "Mach{\'a}{\v{c}}ek, Dominik  and
+      Pol{\'a}k, Peter",
+    editor = "Salesky, Elizabeth  and
+      Federico, Marcello  and
+      Anastasopoulos, Antonis",
+    booktitle = "Proceedings of the 22nd International Conference on Spoken Language Translation (IWSLT 2025)",
+    month = jul,
+    year = "2025",
+    address = "Vienna, Austria (in-person and online)",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2025.iwslt-1.41/",
+    doi = "10.18653/v1/2025.iwslt-1.41",
+    pages = "389--398",
+    ISBN = "979-8-89176-272-5"
+}
+```
