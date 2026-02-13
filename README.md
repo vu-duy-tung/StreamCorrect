@@ -1,6 +1,6 @@
 <div align="center">
   <h1 style="margin-bottom:0.4em">StreamCorrect: Bringing Offline ASR Performance to Streaming via Error Correction</h1>
-  <img src="assets/streamcorrect_overview.png" alt="StreamCorrect overview" style="max-width:40%; height:auto; margin-top:0.2em;" />
+  <img src="assets/streamcorrect_overview.png" alt="StreamCorrect overview" style="max-width:20%; height:auto; margin-top:0.2em;" />
 </div>
 
 ## About StreamCorrect
