@@ -1,107 +1,148 @@
 <div align="center">
-  <h1 style="margin-bottom:0.4em">StreamCorrect: Bringing Offline ASR Performance to Streaming via Error Correction</h1>
-  
-  [![GitHub](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com) [![arXiv](https://img.shields.io/badge/📝-Paper-red)]()
-  
-  <img src="assets/streamcorrect_overview.png" alt="StreamCorrect overview" width="300" />
+  <h1>StreamCorrect</h1>
+  <p><em>Bringing Offline ASR Performance to Streaming via Error Correction</em></p>
+
+  [![GitHub](https://img.shields.io/badge/GitHub-StreamCorrect-181717?logo=github)](https://github.com/vu-duy-tung/StreamCorrect) [![arXiv](https://img.shields.io/badge/arXiv-Paper-b31b1b?logo=arxiv)](https://arxiv.org) [![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+  <img src="assets/streamcorrect_overview.png" alt="StreamCorrect overview" width="500" />
 </div>
 
-## About StreamCorrect
-StreamCorrect addresses the challenges of streaming ASR, where error propagation and limited context often degrade performance compared to offline models. It introduces a lightweight error corrector fine-tuned on self-generated data to mitigate accumulated errors in real-time. This approach bridges the gap between offline ASR quality and streaming requirements, preserving pretrained model performance without requiring distillation into streaming-style architectures.
+---
 
-## Demo
+## 📖 About
 
-<video src="https://github.com/user-attachments/assets/3a4a2947-5881-4b93-b7b6-f233ee44523b" width="300"></video>
+**StreamCorrect** addresses the core challenges of streaming ASR, where error propagation and limited context often degrade performance compared to offline models. It introduces a lightweight error corrector fine-tuned on self-generated data to mitigate accumulated errors in real-time.
+
+Key features:
+- 🔁 **Plug-and-play**: Works on top of any offline-based streaming ASR
+- ⚡ **Lightweight**: Minimal overhead with a LoRA-fine-tuned correction model
+- 🎯 **Effective**: Bridges the gap between offline ASR quality and streaming requirements without distillation
+
+---
+
+## 🎬 Demo
+
+<video src="https://github.com/user-attachments/assets/3a4a2947-5881-4b93-b7b6-f233ee44523b" width="500"></video>
 
 👉 [See more demos](DEMOS.md)
 
-## Preparation
+---
 
-Run the setup script to install dependencies, download model checkpoints, and extract datasets:
+## 🚀 Getting Started
+
+### Prerequisites
+- [Anaconda](https://www.anaconda.com/) or Miniconda
+- CUDA-compatible GPU (recommended)
+
+### Installation
+
+Run the setup script to create the environment, install dependencies, download model checkpoints, and extract datasets:
 
 ```bash
 bash setup.sh
-```
-
-Then activate the environment:
-```bash
 conda activate StreamCorrect
 ```
 
-## Inference
+---
 
-- Inference of StreamCorrect on a single `.wav` file
+## 🧪 Inference
+
+### Single file
+
+Transcribe a single `.wav` file with error correction:
+
 ```bash
 bash runs/run_single_eval_aishell.sh
 ```
 
-- Inference without error corrector
+Override defaults via environment variables:
 ```bash
-USE_ERROR_CORRECTOR=false AUDIO_PATH=sample_audio.wav bash runs/run_single_eval_wsyue.sh
+AUDIO_PATH=your_audio.wav \
+MODEL_PATH=large-v2.pt \
+USE_ERROR_CORRECTOR=true \
+bash runs/run_single_eval_aishell.sh
 ```
 
-- Inference of StreamCorrect on a folder of `.wav` files
+To disable the error corrector:
 ```bash
-AUDIO_DIR=sample_directory_of_wavs bash runs/run_batch_eval_aishell.sh
+USE_ERROR_CORRECTOR=false bash runs/run_single_eval_aishell.sh
 ```
 
-- Output file will be saved to `save_dir/streaming_medium-yue_wsyue_results/evaluation_results.json` with format similar to the follows:
+### Batch inference
+
+Transcribe a folder of `.wav` files (supports multi-GPU parallel processing):
+
+```bash
+AUDIO_DIR=path/to/wavs bash runs/run_batch_eval_aishell.sh
+```
+
+### Output format
+
+Results are saved to `save_dir/<run_name>/evaluation_results.json`:
+
 ```json
 {
   "total_files": 14120,
   "matched_files": 100,
-  "unmatched_files": 14020,
-  "average_cer": 0.2171288845095628,
-  "average_mer": 0.2413379123456789,
+  "average_cer": 0.2171,
+  "average_mer": 0.2413,
+  "average_first_token_latency_ms": 1731.26,
   "per_file_results": [
     {
-      "file": "0000004453.wav",
+      "file": "BAC009S0764W0124.wav",
       "reference": "美国都已经系另外一件事呃欧洲国家亦都系另外一个回事",
       "generated": "都已经 系另外一件事 欧洲国家 亦都系另外一护",
       "cer": 0.24,
       "mer": 0.26,
-      "ref_length": 25,
-      "gen_length": 23,
-      "first_token_latency_ms": 1312.2074604034424
-    },
-    {
-      "file": "0000009941.wav",
-      "reference": "咁我哋就改咗个心出嚟啦即系硬呢度啦吓",
-      "generated": "咁我 哋就改咗个心 出嚟啦即系 硬呢度啦",
-      "cer": 0.05555555555555555,
-      "mer": 0.08333333333333333,
-      "ref_length": 18,
-      "gen_length": 20,
-      "first_token_latency_ms": 1300.1341819763184
+      "first_token_latency_ms": 1312.21
     }
-  ],
-  "average_first_token_latency_ms": 1731.2631171236756
+  ]
 }
 ```
 
-## Error Corrector Fine-tuning
+---
+
+## 🏋️ Training
+
+Fine-tune the error corrector on your own data:
+
 ```bash
 bash SpeechLMCorrector/train.sh --gpus 4
 ```
 
-## Acknownledgement
-This code was adapted and modified from `SimulStreaming` project
+---
+
+## 📄 Citation
+
+If you find this work useful, please consider citing our paper:
+
+```bibtex
+@article{streamcorrect2026,
+  title   = {StreamCorrect: Bringing Offline ASR Performance to Streaming via Error Correction},
+  author  = {},
+  journal = {arXiv preprint},
+  year    = {2026},
+  url     = {https://arxiv.org}
+}
 ```
+
+---
+
+## 🙏 Acknowledgement
+
+This codebase is built upon the [SimulStreaming](https://aclanthology.org/2025.iwslt-1.41/) project. We thank the authors for their excellent work:
+
+```bibtex
 @inproceedings{simulstreaming,
-    title = "Simultaneous Translation with Offline Speech and {LLM} Models in {CUNI} Submission to {IWSLT} 2025",
-    author = "Mach{\'a}{\v{c}}ek, Dominik  and
-      Pol{\'a}k, Peter",
-    editor = "Salesky, Elizabeth  and
-      Federico, Marcello  and
-      Anastasopoulos, Antonis",
-    booktitle = "Proceedings of the 22nd International Conference on Spoken Language Translation (IWSLT 2025)",
-    month = jul,
-    year = "2025",
-    address = "Vienna, Austria (in-person and online)",
-    publisher = "Association for Computational Linguistics",
-    url = "https://aclanthology.org/2025.iwslt-1.41/",
-    doi = "10.18653/v1/2025.iwslt-1.41",
-    pages = "389--398",
-    ISBN = "979-8-89176-272-5"
+  title     = {Simultaneous Translation with Offline Speech and {LLM} Models in {CUNI} Submission to {IWSLT} 2025},
+  author    = {Mach{\'a}{\v{c}}ek, Dominik and Pol{\'a}k, Peter},
+  booktitle = {Proceedings of the 22nd International Conference on Spoken Language Translation (IWSLT 2025)},
+  month     = jul,
+  year      = {2025},
+  address   = {Vienna, Austria},
+  publisher = {Association for Computational Linguistics},
+  url       = {https://aclanthology.org/2025.iwslt-1.41/},
+  doi       = {10.18653/v1/2025.iwslt-1.41},
+  pages     = {389--398}
 }
 ```
