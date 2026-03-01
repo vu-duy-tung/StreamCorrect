@@ -16,38 +16,17 @@ StreamCorrect addresses the challenges of streaming ASR, where error propagation
 👉 [See more demos](DEMOS.md)
 
 ## Preparation
-### Install packages
+
+Run the setup script to install dependencies, download model checkpoints, and extract datasets:
 
 ```bash
-conda create -n StreamCorrect python=3.10
+bash setup.sh
+```
+
+Then activate the environment:
+```bash
 conda activate StreamCorrect
-pip install -r requirements.txt
 ```
-
-### Model checkpoints
-Offline ASR models and Error Correction model could be downloaded [here](https://drive.google.com/drive/folders/1h2tOl6gs93SYZo7fTsc1JYmsOyyRZFLf?usp=sharing)
-
-### Data preparation
-<!-- Download WSYue-ASR-eval for testing:
-```bash
-git clone https://huggingface.co/datasets/ASLP-lab/WSYue-ASR-eval 
-tar -xzf WSYue-ASR-eval/Short/wav.tar.gz
-```
-Preprocess the data:
-```bash
-python wsyue_asr_eval.py \
-        --input ./WSYue-ASR-eval/Short/content.txt \
-        --output ./WSYue-ASR-eval/Short/content.json \
-        --audio-dir ./WSYue-ASR-eval/Short/wav_ \
-``` -->
-
-<!-- ### Install model checkpoint
-Download `whisper-medium-yue` checkpoint:
-```bash
-git clone https://huggingface.co/ASLP-lab/WSYue-ASR
-mv WSYue-ASR/whisper_medium_yue/whisper_medium_yue.pt ./
-rm -rf WSYue-ASR
-``` -->
 
 ## Inference
 
