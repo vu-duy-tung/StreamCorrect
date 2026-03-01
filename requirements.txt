@@ -1,0 +1,52 @@
+# ---- Core deep learning ----
+torch==2.3.1
+torchaudio==2.3.1
+triton==2.3.1;platform_machine=="x86_64" and sys_platform=="linux" or sys_platform=="linux2"
+numpy==2.2.6
+numba==0.62.1
+
+# ---- Hugging Face ecosystem ----
+transformers==4.57.1
+accelerate==1.12.0
+peft==0.18.0
+datasets==4.3.0
+safetensors==0.6.2
+huggingface-hub==0.36.0
+sentencepiece==0.2.0
+tokenizers==0.22.1
+
+# ---- Audio processing ----
+librosa==0.11.0
+soundfile==0.13.1
+
+# ---- Whisper / SimulWhisper ----
+tiktoken==0.12.0
+tqdm==4.67.1
+
+# ---- Evaluation ----
+jiwer==4.0.0
+
+# ---- Chinese/Cantonese text processing ----
+opencc-python-reimplemented==0.1.7
+cn2an==0.5.23
+pycantonese==3.4.0
+
+# ---- Data processing ----
+pandas==2.3.3
+pyarrow==21.0.0
+fastparquet==2024.11.0
+
+# ---- Error corrector (Ultravox backbone) ----
+simple-parsing==0.1.7
+wandb==0.23.1
+pyyaml==6.0.3
+nltk==3.9.2
+truecase==0.0.14
+tenacity==9.1.2
+tensorboard==2.20.0
+
+# ---- Misc utilities ----
+regex==2025.10.23
+requests==2.32.5
+
+gdown==4.7.1
