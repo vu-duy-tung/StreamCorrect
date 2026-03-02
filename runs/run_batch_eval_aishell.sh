@@ -13,13 +13,13 @@ PYTHON="${CONDA_BASE}/envs/StreamCorrect/bin/python"
 # Configuration
 AUDIO_DIR="StreamCorrect_assets/StreamCorrect/aishell1_testset"
 REFERENCE_FILE="StreamCorrect_assets/StreamCorrect/reference.json"
-MODEL_PATH="large-v3.pt"
+MODEL_PATH="large-v2.pt"
 OUTPUT_DIR="save_dir/streaming_largev3-c05_b4_all_aishell_results_without_ec/"
 NUM_FILES=10
 
 # Parallel processing configuration
 NUM_WORKERS=4         # Number of parallel workers (set to 1 for sequential processing)
-GPUS="0,1,2,7"         # Comma-separated list of GPU IDs to use
+GPUS="0,1,2,3"         # Comma-separated list of GPU IDs to use
 # export CUDA_VISIBLE_DEVICES=0,1,2,5,6,7
 
 # # Error corrector configuration (set USE_ERROR_CORRECTOR=true to enable)
