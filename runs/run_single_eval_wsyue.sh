@@ -5,6 +5,11 @@
 
 set -e  # Exit on error
 
+# Resolve Python from StreamCorrect conda environment
+CONDA_BASE="$(conda info --base 2>/dev/null || echo /data/mino/anaconda3)"
+PYTHON="${CONDA_BASE}/envs/StreamCorrect/bin/python"
+[ ! -x "$PYTHON" ] && echo "ERROR: Python not found at $PYTHON" && exit 1
+
 # Configuration
 AUDIO_PATH="${AUDIO_PATH:-/home/duy/PlayWithMino/SimulStreaming/save_dir/data/WSYue-ASR-eval/Short/wav_/0000004453.wav}"
 REFERENCE_FILE="${REFERENCE_FILE:-/home/duy/PlayWithMino/SimulStreaming/save_dir/data/WSYue-ASR-eval/Short/content.json}"
@@ -17,9 +22,11 @@ VAC_CHUNK_SIZE="${VAC_CHUNK_SIZE:-0.5}"
 BEAM_SIZE="${BEAM_SIZE:-4}"
 
 # Error corrector configuration
-USE_ERROR_CORRECTOR="${USE_ERROR_CORRECTOR:-false}"
-ERROR_CORRECTOR_CKPT="${ERROR_CORRECTOR_CKPT:-SpeechLMCorrector/ultravox_lora_continued_more_erroneous_6/checkpoint-1158}"
+USE_ERROR_CORRECTOR="${USE_ERROR_CORRECTOR:-true}"
+ERROR_CORRECTOR_CKPT="${ERROR_CORRECTOR_CKPT:-SpeechLMCorrector/ckpts/wsyue_ultravox_1b_lora_finetuned_2/checkpoint-4390}"
 ERROR_CORRECTOR_BASE_MODEL="${ERROR_CORRECTOR_BASE_MODEL:-fixie-ai/ultravox-v0_5-llama-3_2-1b}"
+# Error corrector type: "speechlm" (audio+text Ultravox) or "lm" (text-only Llama)
+ERROR_CORRECTOR_TYPE="${ERROR_CORRECTOR_TYPE:-speechlm}"
 
 export AUDIO_PATH
 
@@ -42,7 +49,7 @@ fi
 echo ""
 
 # Build command with optional error corrector flags
-CMD="python simulstreaming_whisper.py \"$AUDIO_PATH\" \
+CMD="$PYTHON simulstreaming_whisper.py \"$AUDIO_PATH\" \
     --model_path \"$MODEL_PATH\" \
     --logdir \"$OUTPUT_DIR\" \
     --vac \
@@ -58,6 +65,7 @@ CMD="python simulstreaming_whisper.py \"$AUDIO_PATH\" \
 # Add error corrector flags if enabled
 if [ "$USE_ERROR_CORRECTOR" = "true" ]; then
     CMD="$CMD --use-error-corrector"
+    CMD="$CMD --error-corrector-type \"$ERROR_CORRECTOR_TYPE\""
     if [ -n "$ERROR_CORRECTOR_CKPT" ]; then
         CMD="$CMD --error-corrector-ckpt \"$ERROR_CORRECTOR_CKPT\""
     fi
@@ -76,7 +84,7 @@ echo ""
 
 if [ -f "$OUTPUT_DIR/evaluation_result.json" ]; then
     echo "Evaluation summary:"
-    OUTPUT_FILE="$OUTPUT_DIR/evaluation_result.json" python - <<'PY'
+    OUTPUT_FILE="$OUTPUT_DIR/evaluation_result.json" $PYTHON - <<'PY'
 import json, os
 path = os.environ["OUTPUT_FILE"]
 with open(path, encoding="utf-8") as f:

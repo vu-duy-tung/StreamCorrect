@@ -5,21 +5,28 @@
 
 set -e  # Exit on error
 
+# Resolve Python from StreamCorrect conda environment
+CONDA_BASE="$(conda info --base 2>/dev/null || echo /data/mino/anaconda3)"
+PYTHON="${CONDA_BASE}/envs/StreamCorrect/bin/python"
+[ ! -x "$PYTHON" ] && echo "ERROR: Python not found at $PYTHON" && exit 1
+
 # Configuration
 AUDIO_DIR="/home/duy/PlayWithMino/SimulStreaming/save_dir/data/WSYue-ASR-eval/Long/wav"
 REFERENCE_FILE="/home/duy/PlayWithMino/SimulStreaming/save_dir/data/WSYue-ASR-eval/Long/reference.json"
 MODEL_PATH="medium.pt"
-OUTPUT_DIR="save_dir/streaming_medium-yue-01_longwsyue_results/"
-NUM_FILES=1000
+OUTPUT_DIR="save_dir/streaming_medium-yue-50_01_with_ec/"
+NUM_FILES=50
 
 # Parallel processing configuration
-NUM_WORKERS=4          # Number of parallel workers (set to 1 for sequential processing)
-GPUS="0,1,2,3"         # Comma-separated list of GPU IDs to use
+NUM_WORKERS=5          # Number of parallel workers (set to 1 for sequential processing)
+GPUS="0,1,2,3,4"         # Comma-separated list of GPU IDs to use
 
 # Error corrector configuration (set USE_ERROR_CORRECTOR=true to enable)
-USE_ERROR_CORRECTOR="${USE_ERROR_CORRECTOR:-false}"
-ERROR_CORRECTOR_CKPT="${ERROR_CORRECTOR_CKPT:-SpeechLMCorrector/ultravox_lora_continued_more_erroneous_6/checkpoint-1158}"
+USE_ERROR_CORRECTOR="${USE_ERROR_CORRECTOR:-true}"
+ERROR_CORRECTOR_CKPT="${ERROR_CORRECTOR_CKPT:-SpeechLMCorrector/ckpts/wsyue_ultravox_1b_lora_finetuned_2/checkpoint-4390}"
 ERROR_CORRECTOR_BASE_MODEL="${ERROR_CORRECTOR_BASE_MODEL:-fixie-ai/ultravox-v0_5-llama-3_2-1b}"
+# Error corrector type: "speechlm" (audio+text Ultravox) or "lm" (text-only Llama)
+ERROR_CORRECTOR_TYPE="${ERROR_CORRECTOR_TYPE:-speechlm}"
 
 echo "=========================================="
 echo "SimulStreaming Integrated Workflow Example"
@@ -38,11 +45,11 @@ echo "  Use error corrector: $USE_ERROR_CORRECTOR"
 echo ""
 
 # Build command with optional error corrector flags
-CMD="python simulstreaming_whisper.py \"$AUDIO_DIR\" \
+CMD="$PYTHON simulstreaming_whisper.py \"$AUDIO_DIR\" \
     --model_path \"$MODEL_PATH\" \
     --logdir \"$OUTPUT_DIR\" \
     --vac \
-    --vac-chunk-size 0.1 \
+    --vac-chunk-size 0.5 \
     --min-chunk-size 0.01 \
     --reference-file \"$REFERENCE_FILE\" \
     --log-level INFO \
@@ -57,6 +64,7 @@ CMD="python simulstreaming_whisper.py \"$AUDIO_DIR\" \
 # Add error corrector flags if enabled
 if [ "$USE_ERROR_CORRECTOR" = "true" ]; then
     CMD="$CMD --use-error-corrector"
+    CMD="$CMD --error-corrector-type \"$ERROR_CORRECTOR_TYPE\""
     if [ -n "$ERROR_CORRECTOR_CKPT" ]; then
         CMD="$CMD --error-corrector-ckpt \"$ERROR_CORRECTOR_CKPT\""
     fi

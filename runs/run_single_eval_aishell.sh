@@ -4,21 +4,28 @@
 
 set -e  # Exit on error
 
+# Resolve Python from StreamCorrect conda environment
+CONDA_BASE="$(conda info --base 2>/dev/null || echo /data/mino/anaconda3)"
+PYTHON="${CONDA_BASE}/envs/StreamCorrect/bin/python"
+[ ! -x "$PYTHON" ] && echo "ERROR: Python not found at $PYTHON" && exit 1
+
 # Configuration
-AUDIO_PATH="${AUDIO_PATH:-/data/mino/AISHELL-1/data_aishell/wav/test/testset/BAC009S0916W0458.wav}"
-REFERENCE_FILE="${REFERENCE_FILE:-/data/mino/AISHELL-1/data_aishell/transcript/reference.json}"
+AUDIO_PATH="${AUDIO_PATH:-StreamCorrect_assets/StreamCorrect/aishell1_testset/BAC009S0764W0124.wav}"
+REFERENCE_FILE="${REFERENCE_FILE:-StreamCorrect_assets/StreamCorrect/reference.json}"
 MODEL_PATH="${MODEL_PATH:-large-v2.pt}"
 OUTPUT_DIR="${OUTPUT_DIR:-./example_output}"
 # Make output dir unique per audio (safe for parallel runs)
 OUTPUT_DIR="${OUTPUT_DIR%/}/$(basename "${AUDIO_PATH%.*}")"
 
-VAC_CHUNK_SIZE="${VAC_CHUNK_SIZE:-0.5}"
+VAC_CHUNK_SIZE="${VAC_CHUNK_SIZE:-0.1}"
 BEAM_SIZE="${BEAM_SIZE:-4}"
 
 # Error corrector configuration
 USE_ERROR_CORRECTOR="${USE_ERROR_CORRECTOR:-true}"
-ERROR_CORRECTOR_CKPT="${ERROR_CORRECTOR_CKPT:-SpeechLMCorrector/ultravox_lora_continued_more_erroneous_6/checkpoint-1158}"
+ERROR_CORRECTOR_CKPT="${ERROR_CORRECTOR_CKPT:-StreamCorrect_assets/StreamCorrect/error_corrector_ckpt}"
 ERROR_CORRECTOR_BASE_MODEL="${ERROR_CORRECTOR_BASE_MODEL:-fixie-ai/ultravox-v0_5-llama-3_2-1b}"
+# Error corrector type: "speechlm" (audio+text Ultravox) or "lm" (text-only Llama)
+ERROR_CORRECTOR_TYPE="${ERROR_CORRECTOR_TYPE:-speechlm}"
 
 export AUDIO_PATH
 
@@ -41,7 +48,7 @@ fi
 echo ""
 
 # Build command with optional error corrector flags
-CMD="python simulstreaming_whisper.py \"$AUDIO_PATH\" \
+CMD="$PYTHON simulstreaming_whisper.py \"$AUDIO_PATH\" \
     --model_path \"$MODEL_PATH\" \
     --logdir \"$OUTPUT_DIR\" \
     --vac \
@@ -51,12 +58,13 @@ CMD="python simulstreaming_whisper.py \"$AUDIO_PATH\" \
     --beams $BEAM_SIZE \
     --frame_threshold 20 \
     --reference-file \"$REFERENCE_FILE\" \
-    --log-level DEBUG \
+    --log-level INFO \
     --comp_unaware"
 
 # Add error corrector flags if enabled
 if [ "$USE_ERROR_CORRECTOR" = "true" ]; then
     CMD="$CMD --use-error-corrector"
+    CMD="$CMD --error-corrector-type \"$ERROR_CORRECTOR_TYPE\""
     if [ -n "$ERROR_CORRECTOR_CKPT" ]; then
         CMD="$CMD --error-corrector-ckpt \"$ERROR_CORRECTOR_CKPT\""
     fi
@@ -75,7 +83,7 @@ echo ""
 
 if [ -f "$OUTPUT_DIR/evaluation_result.json" ]; then
     echo "Evaluation summary:"
-    OUTPUT_FILE="$OUTPUT_DIR/evaluation_result.json" python - <<'PY'
+    OUTPUT_FILE="$OUTPUT_DIR/evaluation_result.json" $PYTHON - <<'PY'
 import json, os
 path = os.environ["OUTPUT_FILE"]
 with open(path, encoding="utf-8") as f:

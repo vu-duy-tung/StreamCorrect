@@ -5,6 +5,11 @@
 
 set -e  # Exit on error
 
+# Resolve Python from StreamCorrect conda environment
+CONDA_BASE="$(conda info --base 2>/dev/null || echo /data/mino/anaconda3)"
+PYTHON="${CONDA_BASE}/envs/StreamCorrect/bin/python"
+[ ! -x "$PYTHON" ] && echo "ERROR: Python not found at $PYTHON" && exit 1
+
 # Configuration
 AUDIO_DIR="save_dir/data/acl6060/audios"
 REFERENCE_FILE="save_dir/data/acl6060/reference_transcriptions.json"
@@ -20,6 +25,8 @@ GPUS="0,1,2,3"         # Comma-separated list of GPU IDs to use
 USE_ERROR_CORRECTOR="${USE_ERROR_CORRECTOR:-false}"
 ERROR_CORRECTOR_CKPT="${ERROR_CORRECTOR_CKPT:-SpeechLMCorrector/ultravox_lora_continued_more_erroneous_6/checkpoint-1158}"
 ERROR_CORRECTOR_BASE_MODEL="${ERROR_CORRECTOR_BASE_MODEL:-fixie-ai/ultravox-v0_5-llama-3_2-1b}"
+# Error corrector type: "speechlm" (audio+text Ultravox) or "lm" (text-only Llama)
+ERROR_CORRECTOR_TYPE="${ERROR_CORRECTOR_TYPE:-speechlm}"
 
 echo "=========================================="
 echo "SimulStreaming Integrated Workflow Example"
@@ -38,7 +45,7 @@ echo "  Use error corrector: $USE_ERROR_CORRECTOR"
 echo ""
 
 # Build command with optional error corrector flags
-CMD="python simulstreaming_whisper.py \"$AUDIO_DIR\" \
+CMD="$PYTHON simulstreaming_whisper.py \"$AUDIO_DIR\" \
     --model_path \"$MODEL_PATH\" \
     --logdir \"$OUTPUT_DIR\" \
     --vac \
@@ -54,6 +61,7 @@ CMD="python simulstreaming_whisper.py \"$AUDIO_DIR\" \
 # Add error corrector flags if enabled
 if [ "$USE_ERROR_CORRECTOR" = "true" ]; then
     CMD="$CMD --use-error-corrector"
+    CMD="$CMD --error-corrector-type \"$ERROR_CORRECTOR_TYPE\""
     if [ -n "$ERROR_CORRECTOR_CKPT" ]; then
         CMD="$CMD --error-corrector-ckpt \"$ERROR_CORRECTOR_CKPT\""
     fi

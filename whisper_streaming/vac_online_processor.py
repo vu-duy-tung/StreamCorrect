@@ -3,12 +3,6 @@ from transformers import AutoProcessor, AutoModel, AutoTokenizer
 from peft import PeftModel
 from whisper_streaming.base import OnlineProcessorInterface
 from whisper_streaming.silero_vad_iterator import FixedVADIterator
-from error_corrector.model.corrector_config import CorrectorConfig
-from error_corrector.model.config_builder import (
-    ULTRAVOX_MODEL_ID,
-    build_error_corrector_config as _build_ultravox_error_corrector_config,
-)
-from error_corrector.model.corrector_model import CorrectorModel
 
 import torch
 import numpy as np

@@ -415,6 +415,7 @@ def process_single_audio_file(audio_path, args, asr, online, min_chunk, factory)
 
             # Store the transcription segment
             all_transcriptions.append({
+                'emission_time': now,
                 'start': start_ts,
                 'end': end_ts,
                 'text': text.strip()
@@ -812,6 +813,17 @@ def main_simulation_from_file(factory, add_args=None):
             transcript_file = os.path.join(args.logdir, "final_transcription.txt")
             with open(transcript_file, 'w', encoding='utf-8') as f:
                 f.write(result['final_text'])
+            
+            # Save segments with emission times for video demo generation
+            segments_file = os.path.join(args.logdir, "segments_with_timing.json")
+            segments_data = {
+                'audio_file': audio_path,
+                'duration': result['duration'],
+                'segments': result['segments']
+            }
+            with open(segments_file, 'w', encoding='utf-8') as f:
+                json.dump(segments_data, f, indent=2, ensure_ascii=False)
+            logger.info(f"Segments with timing saved to: {segments_file}")
             logger.info(f"Transcription saved to: {transcript_file}")
 
         # Run evaluation if reference file is provided

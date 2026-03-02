@@ -28,7 +28,6 @@ from .eow_detection import fire_at_boundary, load_cif
 from .generation_progress import *
 
 from token_buffer import TokenBuffer
-from error_corrector.data.types import ERROR_CORRECTOR_TEMPLATE
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 env = os.environ.copy()
@@ -475,6 +474,108 @@ class PaddedAlignAttWhisper:
         }
 
 
+    def _run_LM_error_corrector(
+        self,
+        *,
+        current_tokens: torch.Tensor,
+        token_len_before_decoding: int,
+        corrector_model=None,
+        corrector_tokenizer=None,
+    ):
+        """Run a text-only error corrector using fine-tuned Llama model (LMCorrector).
+        
+        This uses the same format as LMCorrector training - text-only input without audio.
+        """
+        previous_tokens = current_tokens[0, 4:token_len_before_decoding].detach().cpu().tolist()
+        previous_text = self.tokenizer.decode([t for t in previous_tokens if t >= 0]).strip()
+
+        top_k = min(current_tokens.shape[0], getattr(self.cfg, "beam_size", 1))
+        candidate_texts = []
+        for i in range(top_k):
+            toks = current_tokens[i, 4:].detach().cpu().tolist()
+            text = self.tokenizer.decode([t for t in toks if t >= 0]).strip()
+            if text:
+                candidate_texts.append(text)
+        if not candidate_texts:
+            return None
+
+        # Clean up prev_display (remove replacement characters at end)
+        prev_display = previous_text
+        while prev_display.endswith('\uFFFD'):
+            prev_display = prev_display[:-1]
+
+        # Clean up candidates (remove replacement characters)
+        cleaned_candidates = []
+        for text in candidate_texts:
+            while text.endswith('\uFFFD'):
+                text = text[:-1]
+            cleaned_candidates.append(text)
+
+        # Lazy load the LM model (Llama with LoRA)
+        if not hasattr(self, '_lm_corrector_model'):
+            if corrector_model is not None and corrector_tokenizer is not None:
+                self._lm_corrector_model = corrector_model
+                self._lm_corrector_tokenizer = corrector_tokenizer
+                logger.info("Using provided LM corrector model and tokenizer")
+            else:
+                raise ValueError("LM corrector model and tokenizer must be provided for loading")
+        
+        # Import and use the same format function as LMCorrector training
+        from LMCorrector.training import format_instruction_for_correction
+        
+        instruction = format_instruction_for_correction(
+            k_best_candidates=cleaned_candidates,
+            previous_transcript=prev_display,
+        )
+        
+        # Build full text (matching LMCorrector training format)
+        # Training uses: f"{bos}{instruction}\n{response}{eos}"
+        # For inference, we omit response and EOS so model generates them
+        bos_token = self._lm_corrector_tokenizer.bos_token or ""
+        full_text = f"{bos_token}{instruction}\n"
+        
+        # Tokenize input
+        inputs = self._lm_corrector_tokenizer(
+            full_text,
+            return_tensors="pt",
+            truncation=True,
+            max_length=512,
+        )
+        
+        # Move inputs to model device
+        model_device = next(self._lm_corrector_model.parameters()).device
+        inputs = {k: v.to(model_device) for k, v in inputs.items()}
+        
+        # Generate
+        with torch.no_grad():
+            generated_ids = self._lm_corrector_model.generate(
+                **inputs,
+                max_new_tokens=8,
+                do_sample=False,
+                pad_token_id=self._lm_corrector_tokenizer.pad_token_id,
+                eos_token_id=self._lm_corrector_tokenizer.eos_token_id,
+            )
+        
+        # Decode only the new tokens
+        input_length = inputs["input_ids"].shape[1]
+        new_tokens = generated_ids[:, input_length:]
+        response = self._lm_corrector_tokenizer.decode(new_tokens[0], skip_special_tokens=True).strip()
+        
+        print("============ LM CORRECTOR =============")
+        print("=======================================")
+        print(f"Previous: {previous_text}")
+        print(f"Candidates: {cleaned_candidates}")
+        print(f"Corrected: {response}")
+        print("=======================================")
+        
+        return {
+            "prompt": full_text,
+            "previous_transcription": previous_text,
+            "candidates": candidate_texts,
+            "corrected_appended_text": response,
+        }
+
+
     def _run_SpeechLM_error_corrector(
         self,
         *,
@@ -573,12 +674,12 @@ class PaddedAlignAttWhisper:
         new_tokens = generated_ids[:, input_length:]
         response = self._speechlm_processor.tokenizer.decode(new_tokens[0], skip_special_tokens=True).strip()
         
-        print("========= SPEECHLM CORRECTOR ==========")
-        print("=======================================")
-        print(f"Previous: {previous_text}")
-        print(f"Candidates: {cleaned_candidates}")
-        print(f"Corrected: {response}")
-        print("=======================================")
+        # print("========= SPEECHLM CORRECTOR ==========")
+        # print("=======================================")
+        # print(f"Previous: {previous_text}")
+        # print(f"Candidates: {cleaned_candidates}")
+        # print(f"Corrected: {response}")
+        # print("=======================================")
         
         return {
             "prompt": full_text,
@@ -700,6 +801,7 @@ class PaddedAlignAttWhisper:
         *,
         corrector_model=None,
         corrector_processor=None,
+        corrector_type: str = "speechlm",  # "speechlm" or "lm"
     ):
         if (not self.is_warmup and not self.first_token_generated and start_time is not None):
             print(f"Entering infer at {time.time() - start_time:.3f} seconds")
@@ -905,8 +1007,12 @@ class PaddedAlignAttWhisper:
                 generation["frame_delay"] = True
                 break
 
+            # Only update FTL in decoding loop if error corrector is NOT being used
+            # When error corrector is used, FTL will be updated after corrector generates result
+
             if (not self.is_warmup and not self.first_token_generated and
-                start_time is not None and current_tokens.shape[1] > token_len_before_decoding):
+                start_time is not None and current_tokens.shape[1] > token_len_before_decoding and
+                corrector_model is None):
                 self.first_token_latency = time.time() - infer_start_time
                 self.first_token_generated = True
                 generation["first_token_latency"] = self.first_token_latency
@@ -924,17 +1030,46 @@ class PaddedAlignAttWhisper:
 
         # Error Corrector
         use_error_corrector = False
-        if token_len_before_decoding > 0 and not self.is_warmup and corrector_processor is not None:
+        # For SpeechLM corrector, we need corrector_processor (which is the Ultravox processor)
+        # For LM corrector, corrector_processor is actually the tokenizer
+        if token_len_before_decoding > 0 and not self.is_warmup and corrector_model is not None:
             use_error_corrector = True
             error_corrector_start = time.time()
 
-            corrector_result = self._run_SpeechLM_error_corrector(
-                input_audio=input_segments,
-                current_tokens=current_tokens,
-                token_len_before_decoding=token_len_before_decoding,
-                corrector_model=corrector_model,
-                corrector_processor=corrector_processor,
-            )
+            
+            estimated_run_time_start = time.time()
+
+            if corrector_type == "lm":
+                # LM corrector (text-only, Llama with LoRA)
+                corrector_result = self._run_LM_error_corrector(
+                    current_tokens=current_tokens,
+                    token_len_before_decoding=token_len_before_decoding,
+                    corrector_model=corrector_model,
+                    corrector_tokenizer=corrector_processor,  # For LM, processor is actually the tokenizer
+                )
+            else:
+                # SpeechLM corrector (audio + text, Ultravox with LoRA)
+                corrector_result = self._run_SpeechLM_error_corrector(
+                    input_audio=input_segments,
+                    current_tokens=current_tokens,
+                    token_len_before_decoding=token_len_before_decoding,
+                    corrector_model=corrector_model,
+                    corrector_processor=corrector_processor,
+                )
+            
+            estimated_run_time_end = time.time()
+
+            if corrector_result is not None:
+                tmp_len = len(corrector_result['corrected_appended_text']) + 1
+                estimated_run_time = (estimated_run_time_end - estimated_run_time_start) / tmp_len * (tmp_len - 1)
+
+            # Update first token latency right after error corrector generates result
+            if (not self.is_warmup and not self.first_token_generated and
+                start_time is not None and corrector_result is not None):
+                self.first_token_latency = time.time() - infer_start_time - estimated_run_time
+                self.first_token_generated = True
+                generation["first_token_latency"] = self.first_token_latency
+
 
             if corrector_result is not None:
                 corrector_result['corrected_appended_token_ids'] = self.tokenizer.encode(
@@ -944,7 +1079,7 @@ class PaddedAlignAttWhisper:
             if corrector_result is not None:
                 generation["error_corrector"] = corrector_result
             error_corrector_end = time.time()
-            print(f"Error corrector time: {1000 * (error_corrector_end - error_corrector_start):.3f} ms")
+            # print(f"Error corrector time: {1000 * (error_corrector_end - error_corrector_start):.3f} ms")
 
             logger.info("End of decoding loop")
             t_after_decoding = time.time()
