@@ -1,0 +1,128 @@
+# =============================================================================
+# Qwen2-Audio LoRA Fine-tuning Configuration
+# =============================================================================
+# Usage: python training_qwen2audio.py --config training_config_qwen2audio.yaml
+
+# -----------------------------------------------------------------------------
+# Model Configuration
+# -----------------------------------------------------------------------------
+model_id: "Qwen/Qwen2-Audio-7B-Instruct"
+
+# -----------------------------------------------------------------------------
+# LoRA Configuration
+# -----------------------------------------------------------------------------
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - "q_proj"
+  - "k_proj"
+  - "v_proj"
+  - "o_proj"
+  - "gate_proj"
+  - "up_proj"
+  - "down_proj"
+
+# -----------------------------------------------------------------------------
+# Trainable Components
+# -----------------------------------------------------------------------------
+# Keep audio encoder (Whisper-large-v3) frozen
+train_audio_encoder: false
+
+# -----------------------------------------------------------------------------
+# Training Parameters
+# -----------------------------------------------------------------------------
+output_dir: "/data/mino/model_ckpts/wsyue_qwen2audio_7b_lora_finetuned_mix_4"
+num_train_epochs: 12
+# NOTE: Qwen2-Audio-7B is a large model (~16GB+ VRAM)
+# batch_size=1-2 recommended on 24GB GPU, increase gradient_accumulation_steps
+per_device_train_batch_size: 2
+per_device_eval_batch_size: 2
+gradient_accumulation_steps: 12
+learning_rate: 1.0e-4 
+weight_decay: 0.05
+max_grad_norm: 1.0
+logging_steps: 15
+save_steps: 800
+eval_steps: 800
+
+# Learning rate scheduler
+lr_scheduler_type: "cosine"
+warmup_ratio: 0.01
+
+# Mixed precision training
+# bf16 is recommended for Qwen2-Audio if your GPU supports it
+fp16: false
+bf16: false
+
+# Memory optimization
+gradient_checkpointing: true
+
+# -----------------------------------------------------------------------------
+# WandB Logging Configuration
+# -----------------------------------------------------------------------------
+report_to:
+  - "wandb"
+  - "tensorboard"
+
+wandb_project: "qwen2audio-7b-lora-finetune"
+wandb_run_name: null
+
+wandb_tags:
+  - "qwen2-audio"
+  - "lora"
+  - "asr-error-correction"
+
+# -----------------------------------------------------------------------------
+# Data Configuration
+# -----------------------------------------------------------------------------
+# Supported formats:
+# 1. Standard format (JSON/JSONL/CSV):
+#    {"audio": "path/to/audio.wav", "instruction": "...", "response": "..."}
+#
+# 2. Custom ASR Error Correction format (JSONL, auto-detected):
+#    {
+#      "k_best_candidates": ["candidate1", "candidate2", ...],
+#      "num_candidates": 4,
+#      "previous_transcript": "confirmed prefix",
+#      "continuation_transcript": "continuation to predict",
+#      "audio_path": "/path/to/audio.wav",
+#      "timestamp": 2.0
+#    }
+#
+# Single dataset (backward compatible):
+# train_data_path: "./data/sample_custom_data/wsyue_samples_500_4.jsonl"
+#
+# Multiple datasets with weights:
+# Weight = integer multiplier for how many times samples are repeated per epoch.
+# All weighted samples are shuffled together before training.
+train_data_paths:
+  - path: "./data/sample_custom_data/wsyue_test_500_4.jsonl"
+    weight: 1
+  # - path: "./data/sample_custom_data/wsyue_samples_500_4.jsonl"
+  #   weight: 1
+eval_data_path: null
+
+# Train/validation split settings
+train_val_split: 0.07
+shuffle_data: true
+
+# Audio settings
+max_audio_length_seconds: 30.0
+max_text_length: 512
+sample_rate: 16000
+
+# -----------------------------------------------------------------------------
+# Distributed Training (DDP) Configuration
+# -----------------------------------------------------------------------------
+ddp_find_unused_parameters: true
+ddp_backend: "nccl"
+local_rank: -1
+dataloader_num_workers: 4
+dataloader_pin_memory: true
+
+# -----------------------------------------------------------------------------
+# Miscellaneous
+# -----------------------------------------------------------------------------
+seed: 42
+resume_from_checkpoint: null

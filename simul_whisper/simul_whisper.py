@@ -614,28 +614,27 @@ class PaddedAlignAttWhisper:
                 text = text[:-1]
             cleaned_candidates.append(text)
 
-        # Lazy load the SpeechLM model (Ultravox with LoRA)
+        # Lazy load the SpeechLM model
         if not hasattr(self, '_speechlm_model'):
             if corrector_model is not None and corrector_processor is not None:
                 self._speechlm_model = corrector_model
                 self._speechlm_processor = corrector_processor
-                logger.info("Using provided SpeechLM corrector model and tokenizer")
+                # Detect model type for choosing the right inference path
+                model_config = getattr(corrector_model, 'config', None)
+                if model_config is None and hasattr(corrector_model, 'base_model'):
+                    model_config = getattr(corrector_model.base_model, 'config', None)
+                self._speechlm_model_type = getattr(model_config, 'model_type', 'ultravox')
+                logger.info(f"Using provided SpeechLM corrector model (type: {self._speechlm_model_type})")
             else:
                 raise ValueError("SpeechLM corrector model and tokenizer must be provided for loading")
         
         # Import and use the same format function as training to ensure consistency
-        from SpeechLMCorrector.training import format_instruction_for_correction
+        from SpeechLMCorrector.training_qwen2audio import format_instruction_for_correction
         
         instruction = format_instruction_for_correction(
             k_best_candidates=cleaned_candidates,
             previous_transcript=prev_display,
         )
-        
-        # Build full text with audio placeholder (matching training format)
-        # Training uses: f"{bos}<|audio|>\n{instruction}\n{response}{eos}"
-        # For inference, we omit response and EOS so model generates them
-        bos_token = self._speechlm_processor.tokenizer.bos_token or ""
-        full_text = f"{bos_token}<|audio|>\n{instruction}\n"
         
         # Ensure audio is float32 numpy array
         if isinstance(input_audio, torch.Tensor):
@@ -647,13 +646,35 @@ class PaddedAlignAttWhisper:
         if audio_array.ndim > 1:
             audio_array = audio_array.mean(axis=0) if audio_array.shape[0] <= 2 else audio_array[0]
         
-        # Process with Ultravox processor
-        inputs = self._speechlm_processor(
-            audio=audio_array,
-            text=full_text,
-            return_tensors="pt",
-            sampling_rate=16000,
-        )
+        if self._speechlm_model_type == 'qwen2_audio':
+            # Qwen2-Audio: use chat template format
+            conversation = [
+                {"role": "system", "content": "You are a helpful assistant specialized in ASR error correction."},
+                {"role": "user", "content": [
+                    {"type": "audio", "audio_url": "placeholder"},
+                    {"type": "text", "text": instruction},
+                ]},
+            ]
+            full_text = self._speechlm_processor.apply_chat_template(
+                conversation, add_generation_prompt=True, tokenize=False
+            )
+            inputs = self._speechlm_processor(
+                text=full_text,
+                audios=[audio_array],
+                return_tensors="pt",
+                sampling_rate=16000,
+                padding=True,
+            )
+        else:
+            # Ultravox: use <|audio|> token format
+            bos_token = self._speechlm_processor.tokenizer.bos_token or ""
+            full_text = f"{bos_token}<|audio|>\n{instruction}\n"
+            inputs = self._speechlm_processor(
+                audio=audio_array,
+                text=full_text,
+                return_tensors="pt",
+                sampling_rate=16000,
+            )
         
         # Move inputs to model device
         model_device = next(self._speechlm_model.parameters()).device

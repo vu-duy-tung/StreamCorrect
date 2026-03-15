@@ -1,5 +1,5 @@
 import os
-from transformers import AutoProcessor, AutoModel, AutoTokenizer
+from transformers import AutoProcessor, AutoModel, AutoTokenizer, AutoConfig
 from peft import PeftModel
 from whisper_streaming.base import OnlineProcessorInterface
 from whisper_streaming.silero_vad_iterator import FixedVADIterator
@@ -89,7 +89,7 @@ class VACOnlineASRProcessor(OnlineProcessorInterface):
                 self._corrector_model.eval()
                 logger.info("LM corrector loaded successfully")
             else:
-                # SpeechLM corrector (audio + text, Ultravox with LoRA)
+                # SpeechLM corrector (audio + text, with LoRA)
                 base_model_id = error_corrector_base_model or "fixie-ai/ultravox-v0_5-llama-3_2-1b"
                 if error_corrector_ckpt:
                     checkpoint_path = error_corrector_ckpt
@@ -106,13 +106,25 @@ class VACOnlineASRProcessor(OnlineProcessorInterface):
                     trust_remote_code=True
                 )
 
-                # Load base model
-                base_model = AutoModel.from_pretrained(
-                    base_model_id,
-                    torch_dtype=torch.float32,
-                    trust_remote_code=True,
-                    device_map="cuda",
-                )
+                # Detect model type and load with the appropriate class
+                model_config = AutoConfig.from_pretrained(base_model_id, trust_remote_code=True)
+                model_type = getattr(model_config, 'model_type', '')
+                
+                if model_type == 'qwen2_audio':
+                    from transformers import Qwen2AudioForConditionalGeneration
+                    base_model = Qwen2AudioForConditionalGeneration.from_pretrained(
+                        base_model_id,
+                        torch_dtype=torch.float32,
+                        trust_remote_code=True,
+                        device_map="cuda",
+                    )
+                else:
+                    base_model = AutoModel.from_pretrained(
+                        base_model_id,
+                        torch_dtype=torch.float32,
+                        trust_remote_code=True,
+                        device_map="cuda",
+                    )
 
                 # Load LoRA adapter
                 self._corrector_model = PeftModel.from_pretrained(

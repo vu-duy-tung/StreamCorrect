@@ -303,8 +303,8 @@ def load_model(
     
 
     # ===== Custom whisper medium =====
-    # if name == "medium":
-    #     checkpoint_file = "whisper_medium_yue.pt"
+    if name == "medium":
+        checkpoint_file = "whisper_medium_yue.pt"
     if name == "large-v2":
         checkpoint_file = "large-v2-zh.pt"
     # if name == "large-v3-turbo":
@@ -321,9 +321,9 @@ def load_model(
     # ===== Custom whisper medium =====
     if name == "large-v2":
         checkpoint['model_state_dict'] = convert_finetuned_to_whisper_state_dict(checkpoint['model_state_dict'])
-    # if name == "medium":
-    #     checkpoint['model_state_dict'] = convert_wenet_to_whisper_state_dict(checkpoint)
-    #     checkpoint["dims"] = {'n_mels': 80, 'n_vocab': 51865, 'n_audio_ctx': 1500, 'n_audio_state': 1024, 'n_audio_head': 16, 'n_audio_layer': 24, 'n_text_ctx': 448, 'n_text_state': 1024, 'n_text_head': 16, 'n_text_layer': 24}
+    if name == "medium":
+        checkpoint['model_state_dict'] = convert_wenet_to_whisper_state_dict(checkpoint)
+        checkpoint["dims"] = {'n_mels': 80, 'n_vocab': 51865, 'n_audio_ctx': 1500, 'n_audio_state': 1024, 'n_audio_head': 16, 'n_audio_layer': 24, 'n_text_ctx': 448, 'n_text_state': 1024, 'n_text_head': 16, 'n_text_layer': 24}
     # ================================
 
     dims = ModelDimensions(**checkpoint["dims"])

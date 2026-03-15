@@ -11,20 +11,20 @@ PYTHON="${CONDA_BASE}/envs/StreamCorrect/bin/python"
 [ ! -x "$PYTHON" ] && echo "ERROR: Python not found at $PYTHON" && exit 1
 
 # Configuration
-AUDIO_DIR="/home/duy/PlayWithMino/SimulStreaming/save_dir/data/WSYue-ASR-eval/Short/wav_"
-REFERENCE_FILE="/home/duy/PlayWithMino/SimulStreaming/save_dir/data/WSYue-ASR-eval/Short/content.json"
+AUDIO_DIR="/mnt/nas_disk1/duy1/PlayWithMino/SimulStreaming/save_dir/data/WSYue-ASR-eval/Short/wav_"
+REFERENCE_FILE="/mnt/nas_disk1/duy1/PlayWithMino/SimulStreaming/save_dir/data/WSYue-ASR-eval/Short/content.json"
 MODEL_PATH="medium.pt"
-OUTPUT_DIR="save_dir/streaming_medium-yue-50_05_with_ec/"
-NUM_FILES=50
+OUTPUT_DIR="save_dir/streaming_medium-yue-all_05_with_ec/"
+NUM_FILES=10000
 
 # Parallel processing configuration
-NUM_WORKERS=3          # Number of parallel workers (set to 1 for sequential processing)
-GPUS="5,6,7"         # Comma-separated list of GPU IDs to use
+NUM_WORKERS=5          # Number of parallel workers (set to 1 for sequential processing)
+GPUS="3,4,5,6,7"         # Comma-separated list of GPU IDs to use
 
 # Error corrector configuration (set USE_ERROR_CORRECTOR=true to enable)
 USE_ERROR_CORRECTOR="${USE_ERROR_CORRECTOR:-true}"
-ERROR_CORRECTOR_CKPT="${ERROR_CORRECTOR_CKPT:-SpeechLMCorrector/ckpts/wsyue_ultravox_1b_lora_finetuned_6/checkpoint-2830}"
-ERROR_CORRECTOR_BASE_MODEL="${ERROR_CORRECTOR_BASE_MODEL:-fixie-ai/ultravox-v0_5-llama-3_2-1b}"
+ERROR_CORRECTOR_CKPT="${ERROR_CORRECTOR_CKPT:-/data/mino/model_ckpts/wsyue_qwen2audio_7b_lora_finetuned_mix_4/checkpoint-3492}"
+ERROR_CORRECTOR_BASE_MODEL="${ERROR_CORRECTOR_BASE_MODEL:-Qwen/Qwen2-Audio-7B-Instruct}"
 # Error corrector type: "speechlm" (audio+text Ultravox) or "lm" (text-only Llama)
 ERROR_CORRECTOR_TYPE="${ERROR_CORRECTOR_TYPE:-speechlm}"
 
