@@ -15,7 +15,7 @@ conda activate "$ENV_NAME"
 pip install -r requirements.txt
 
 # 3. Download model checkpoints and data assets
-git clone https://huggingface.co/datasets/playwithmino/StreamCorrect
+git clone https://huggingface.co/datasets/[username]/StreamCorrect
 mv StreamCorrect StreamCorrect_assets
 
 # 4. Extract model checkpoint
