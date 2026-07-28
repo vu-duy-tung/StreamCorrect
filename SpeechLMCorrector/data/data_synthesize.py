@@ -33,6 +33,41 @@ def extract_ref_hyp(stdout: str) -> Tuple[Optional[str], Optional[str]]:
     return ref, hyp
 
 
+def _align_prev_end_in_ref(prev_tokens: List[str], ref_tokens: List[str]) -> int:
+    """Semi-global Levenshtein: find j* that minimizes D(m, j) for ASR prefix length m.
+
+    D(i, j) = edit distance between prev_tokens[:i] and ref_tokens[:j], with the
+    usual recurrence over deletion / insertion / substitution.  We fully consume
+    the ASR prefix (row m) and choose the GT prefix end j that minimizes D(m, j).
+    Ties break toward j closest to m (similar lengths after tokenization).
+    """
+    m, n = len(prev_tokens), len(ref_tokens)
+    if m == 0 or n == 0:
+        return 0
+
+    # prev_row[j] = D(i-1, j); curr[j] = D(i, j). Space-optimized to two rows.
+    prev_row = list(range(n + 1))  # D(0, j) = j (insertions)
+    for i in range(1, m + 1):
+        curr = [i] + [0] * n  # D(i, 0) = i (deletions)
+        pc = prev_tokens[i - 1]
+        for j in range(1, n + 1):
+            cost = 0 if pc == ref_tokens[j - 1] else 1
+            curr[j] = min(
+                prev_row[j - 1] + cost,  # match / substitution
+                prev_row[j] + 1,         # deletion (ASR has extra token)
+                curr[j - 1] + 1,         # insertion (ASR missing token)
+            )
+        prev_row = curr
+
+    best_j, best_val = 0, prev_row[0]
+    for j in range(1, n + 1):
+        v = prev_row[j]
+        if v < best_val or (v == best_val and abs(j - m) < abs(best_j - m)):
+            best_val = v
+            best_j = j
+    return best_j
+
+
 def parse_stderr_topk(stderr: str, k: int = 4) -> List[Dict[str, Any]]:
     """
     For each chunk (between 'The system received audio from ... to ...'):
@@ -218,28 +253,16 @@ def prepare_error_correction_data(
 
         continuation_transcript = ""
 
-        offsets = [0] + [j for j in range(-6, 7) if j != 0]  # widened offset range for syllables
-        max_count, cand_offset = -1, 0
-        for offset in offsets:
-            count = 0
-            for p_prev in range(len(prev_tokens) - 1, -1, -1):
-                p_ref = p_prev + offset
-                if p_ref < 0 or p_ref >= len(ref_tokens):
-                    continue
-                if prev_tokens[p_prev] == ref_tokens[p_ref]:
-                    count += 1
-                if count > max_count:
-                    max_count = count
-                    cand_offset = offset
+        # Align ASR prefix to the best-matching GT prefix via Levenshtein DP.
+        range_l = _align_prev_end_in_ref(prev_tokens, ref_tokens)
 
         if len(ch['topk']) > 0:
             # Prefer the first non-empty candidate; some beams can be empty strings.
             top_candidate = next((cand for cand in ch["topk"] if cand.strip()), "")
             topk_tokens = split_into_syllables(top_candidate)
             num_pred_tokens = len(topk_tokens) - len(prev_tokens)
-            range_l = len(prev_tokens) + cand_offset
             range_r = min(range_l + num_pred_tokens, len(ref_tokens))
-            
+
             # Join the extracted syllables back into a string
             continuation_transcript = "".join(ref_tokens[range_l:range_r])
 

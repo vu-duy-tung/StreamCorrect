@@ -1,33 +1,3 @@
-<div align="center">
-  <h1>StreamCorrect</h1>
-  <p><em>Bringing Offline ASR Performance to Streaming via Error Correction</em></p>
-
-  [![GitHub](https://img.shields.io/badge/GitHub-StreamCorrect-181717?logo=github)](https://github.com/vu-duy-tung/StreamCorrect) [![arXiv](https://img.shields.io/badge/arXiv-Paper-b31b1b?logo=arxiv)](https://arxiv.org) [![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-  <img src="assets/streamcorrect_overview.png" alt="StreamCorrect overview" width="500" />
-</div>
-
----
-
-## 📖 About
-
-**StreamCorrect** addresses the core challenges of streaming ASR, where error propagation and limited context often degrade performance compared to offline models. It introduces a lightweight error corrector fine-tuned on self-generated data to mitigate accumulated errors in real-time.
-
-Key features:
-- 🔁 **Plug-and-play**: Works on top of any offline-based streaming ASR
-- ⚡ **Lightweight**: Minimal overhead with a LoRA-fine-tuned correction model
-- 🎯 **Effective**: Bridges the gap between offline ASR quality and streaming requirements without distillation
-
----
-
-## 🎬 Demo
-
-<video src="https://github.com/user-attachments/assets/3a4a2947-5881-4b93-b7b6-f233ee44523b" width="500"></video>
-
-👉 [See more demos](DEMOS.md)
-
----
-
 ## 🚀 Getting Started
 
 ### Prerequisites
