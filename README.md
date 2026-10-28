@@ -117,12 +117,25 @@ bash SpeechLMCorrector/train.sh --gpus 4
 If you find this work useful, please consider citing our paper:
 
 ```bibtex
-@article{streamcorrect2026,
-  title   = {StreamCorrect: Bringing Offline ASR Performance to Streaming via Error Correction},
-  author  = {},
-  journal = {arXiv preprint},
-  year    = {2026},
-  url     = {https://arxiv.org}
+@inproceedings{vu-etal-2026-streamcorrect,
+    title = "{S}tream{C}orrect: Self-Supervised Error Correction for Real-Time {ASR} with Offline Recognizers",
+    author = "Vu, Tung D.  and
+      Xie, Zeying  and
+      Zhao, Weiwei  and
+      Wei, Victor Junqiu  and
+      Jiang, Di  and
+      Fung, Yi R.",
+    editor = "Atanasova, Pepa  and
+      Haffari, Gholamreza  and
+      Wang, Minghan",
+    booktitle = "Proceedings of the 2026 Conference on Empirical Methods in Natural Language Processing: Industry Track",
+    month = oct,
+    year = "2026",
+    address = "Budapest, Hungary",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2026.emnlp-industry.142/",
+    pages = "2391--2403",
+    ISBN = "979-8-89176-460-6"
 }
 ```
 
